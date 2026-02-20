@@ -40,10 +40,11 @@ fun LicenseScreen(
         contentAlignment = Alignment.Center
     ) {
         val configuration = LocalConfiguration.current
-        val formWidth = if (configuration.screenWidthDp > 600) 0.5f else 1f
+        val formWidth = if (configuration.screenWidthDp > 600) 0.6f else 1f
+
         Card(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(formWidth)
                 .padding(32.dp),
             shape = RoundedCornerShape(24.dp),
             elevation = CardDefaults.cardElevation(8.dp)
@@ -87,7 +88,7 @@ fun LicenseScreen(
                         viewModel.clearError()
                     },
                     label = { Text("Kode Lisensi") },
-                    placeholder = { Text("APOTEK-DEMO-2024-XXXX") },
+                    placeholder = { Text("123456") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = error != null,
@@ -118,7 +119,7 @@ fun LicenseScreen(
 
                 // Demo hint
                 TextButton(
-                    onClick = { licenseKey = "APOTEK-DEMO-2024-1234" }
+                    onClick = { licenseKey = "123456" }
                 ) {
                     Text("Gunakan Lisensi Demo", color = Primary)
                 }
