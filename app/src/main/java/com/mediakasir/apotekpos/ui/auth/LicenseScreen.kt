@@ -1,5 +1,7 @@
 package com.mediakasir.apotekpos.ui.auth
 
+import android.content.res.Configuration
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +39,8 @@ fun LicenseScreen(
             .background(Primary),
         contentAlignment = Alignment.Center
     ) {
+        val configuration = LocalConfiguration.current
+        val formWidth = if (configuration.screenWidthDp > 600) 0.5f else 1f
         Card(
             modifier = Modifier
                 .fillMaxWidth()
