@@ -88,7 +88,7 @@ fun LicenseScreen(
                         viewModel.clearError()
                     },
                     label = { Text("Kode Lisensi") },
-                    placeholder = { Text("123456") },
+                    placeholder = { Text("masukkan kode lisensi") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = error != null,
