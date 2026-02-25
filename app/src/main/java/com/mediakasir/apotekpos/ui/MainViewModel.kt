@@ -39,7 +39,7 @@ class MainViewModel @Inject constructor(
 
     private fun loadSession() {
         viewModelScope.launch {
-            _license.value = session.getLicense()
+
             _user.value = session.getUser()
             _isLoading.value = false
         }
@@ -51,7 +51,7 @@ class MainViewModel @Inject constructor(
             _error.value = null
             try {
                 val info = api.validateLicense(LicenseValidateRequest(key))
-                session.saveLicense(info)
+
                 _license.value = info
                 onSuccess()
             } catch (e: Exception) {

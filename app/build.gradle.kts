@@ -19,8 +19,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Ganti URL backend sesuai server Anda
-        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8001/api/\"")
+        // Base URL ApoApps API v1 (backend yang sama dengan web admin)
+        buildConfigField("String", "BASE_URL", "\"https://api.apoapps.id/api/v1/\"")
     }
 
     buildTypes {
