@@ -1,37 +1,32 @@
 package com.mediakasir.apotekpos.ui.auth
 
-import android.content.res.Configuration
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediakasir.apotekpos.ui.MainViewModel
 import com.mediakasir.apotekpos.ui.theme.Primary
-import com.mediakasir.apotekpos.ui.theme.Secondary
 
 @Composable
 fun LicenseScreen(
     viewModel: MainViewModel,
     onSuccess: () -> Unit
 ) {
-    var licenseKey by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
-
-    LaunchedEffect(error) {
-        // error displayed in UI
-    }
 
     Box(
         modifier = Modifier
@@ -73,38 +68,43 @@ fun LicenseScreen(
                     textAlign = TextAlign.Center
                 )
 
-                Divider()
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
-                    text = "Masukkan Kode Lisensi",
+                    text = "Masukkan Token API",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
 
                 OutlinedTextField(
-                    value = licenseKey,
+                    value = token,
                     onValueChange = {
-                        licenseKey = it
+                        token = it
                         viewModel.clearError()
                     },
-                    label = { Text("Kode Lisensi") },
-                    placeholder = { Text("123456") },
+                    label = { Text("Token API") },
+                    placeholder = { Text("Masukkan token dari sistem...") },
+                    leadingIcon = {
+                        Icon(Icons.Filled.Key, contentDescription = null)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = error != null,
-                    supportingText = error?.let { { Text(it, color = MaterialTheme.colorScheme.error) } }
+                    supportingText = error?.let {
+                        { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
                 )
 
                 Button(
                     onClick = {
-                        if (licenseKey.isNotBlank()) {
-                            viewModel.validateLicense(licenseKey.trim(), onSuccess)
+                        if (token.isNotBlank()) {
+                            viewModel.activateLicense(token.trim(), onSuccess)
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    enabled = !isLoading && licenseKey.isNotBlank()
+                    enabled = !isLoading && token.isNotBlank()
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -113,15 +113,8 @@ fun LicenseScreen(
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Aktivasi Lisensi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Aktivasi & Lanjut Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
-                }
-
-                // Demo hint
-                TextButton(
-                    onClick = { licenseKey = "123456" }
-                ) {
-                    Text("Gunakan Lisensi Demo", color = Primary)
                 }
             }
         }

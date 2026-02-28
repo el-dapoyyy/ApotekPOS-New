@@ -4,9 +4,67 @@ import com.google.gson.annotations.SerializedName
 
 // ===== Auth Models =====
 
-data class LicenseValidateRequest(
-    @SerializedName("license_key") val licenseKey: String,
-    @SerializedName("device_id") val deviceId: String = ""
+// --- Login Request ---
+data class LoginRequest(
+    val email: String,
+    val password: String
+)
+
+// --- Login Response (nested) ---
+data class LoginUserData(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val role: String
+)
+
+data class LoginBranchData(
+    val id: Int,
+    val name: String,
+    val address: String,
+    val phone: String,
+    @SerializedName("sia_number") val siaNumber: String? = null,
+    @SerializedName("apoteker_name") val apotekerName: String? = null,
+    @SerializedName("sipa_number") val sipaNumber: String? = null
+)
+
+data class LoginPartnerData(
+    val id: Int,
+    val name: String
+)
+
+data class LoginLicenseData(
+    val status: String,
+    @SerializedName("expired_at") val expiredAt: String,
+    @SerializedName("days_remaining") val daysRemaining: Double,
+    @SerializedName("is_trial") val isTrial: Boolean
+)
+
+data class LoginResponseData(
+    val user: LoginUserData,
+    val branch: LoginBranchData,
+    val partner: LoginPartnerData,
+    val license: LoginLicenseData,
+    val token: String,
+    @SerializedName("expires_at") val expiresAt: String
+)
+
+data class LoginResponse(
+    val success: Boolean,
+    val message: String,
+    val data: LoginResponseData
+)
+
+// --- Session Models (disimpan di DataStore) ---
+data class UserInfo(
+    val userId: String,
+    val name: String,
+    val email: String,
+    val role: String,
+    val branchId: String,
+    val branchName: String,
+    val partnerName: String,
+    val token: String
 )
 
 data class LicenseInfo(
@@ -14,27 +72,23 @@ data class LicenseInfo(
     @SerializedName("branch_name") val branchName: String,
     @SerializedName("pharmacy_name") val pharmacyName: String,
     val address: String = "",
-    val phone: String = ""
-)
-
-data class LoginRequest(
-    val username: String,
-    val pin: String
-)
-
-data class UserInfo(
-    @SerializedName("user_id") val userId: String,
-    val username: String,
-    @SerializedName("full_name") val fullName: String,
-    val role: String,
-    @SerializedName("branch_id") val branchId: String,
-    val token: String
+    val phone: String = "",
+    val status: String = "active",
+    @SerializedName("expired_at") val expiredAt: String = "",
+    @SerializedName("days_remaining") val daysRemaining: Double = 0.0,
+    @SerializedName("is_trial") val isTrial: Boolean = false
 )
 
 data class ChangePinRequest(
-    val username: String,
-    @SerializedName("old_pin") val oldPin: String,
-    @SerializedName("new_pin") val newPin: String
+    val email: String,
+    @SerializedName("old_password") val oldPassword: String,
+    @SerializedName("new_password") val newPassword: String
+)
+
+// Kept for backward compat if license/validate endpoint still used
+data class LicenseValidateRequest(
+    @SerializedName("license_key") val licenseKey: String,
+    @SerializedName("device_id") val deviceId: String = ""
 )
 
 // ===== Product Models =====

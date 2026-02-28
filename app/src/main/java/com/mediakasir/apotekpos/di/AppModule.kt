@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.mediakasir.apotekpos.BuildConfig
 import com.mediakasir.apotekpos.data.network.ApiService
 import com.mediakasir.apotekpos.data.network.AuthInterceptor
+import com.mediakasir.apotekpos.data.network.MockApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -15,6 +16,9 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
+
+// ⚙️ Ganti ke false untuk menggunakan backend nyata
+private const val USE_MOCK_API = true
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -48,5 +52,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService =
-        retrofit.create(ApiService::class.java)
+        if (USE_MOCK_API) MockApiService()
+        else retrofit.create(ApiService::class.java)
 }
+

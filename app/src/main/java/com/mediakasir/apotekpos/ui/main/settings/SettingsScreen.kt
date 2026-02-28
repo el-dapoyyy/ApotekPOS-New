@@ -96,13 +96,13 @@ fun SettingsScreen(
                         Text("Informasi Pengguna", fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(12.dp))
-                    InfoRow("Username", user?.username ?: "-")
-                    InfoRow("Nama", user?.fullName ?: "-")
+                    InfoRow("Email", user?.email ?: "-")
+                    InfoRow("Nama", user?.name ?: "-")
                     InfoRow("Role", user?.role?.uppercase() ?: "-")
                 }
             }
 
-            // Change PIN
+            // Change Password
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -111,33 +111,33 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Lock, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Ganti PIN", fontWeight = FontWeight.Bold)
+                        Text("Ganti Password", fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedTextField(
                         value = oldPin,
-                        onValueChange = { if (it.length <= 8) oldPin = it },
-                        label = { Text("PIN Lama") },
+                        onValueChange = { oldPin = it },
+                        label = { Text("Password Lama") },
                         visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = newPin,
-                        onValueChange = { if (it.length <= 8) newPin = it },
-                        label = { Text("PIN Baru") },
+                        onValueChange = { newPin = it },
+                        label = { Text("Password Baru") },
                         visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = confirmPin,
-                        onValueChange = { if (it.length <= 8) confirmPin = it },
-                        label = { Text("Konfirmasi PIN Baru") },
+                        onValueChange = { confirmPin = it },
+                        label = { Text("Konfirmasi Password Baru") },
                         visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         isError = pinError != null,
@@ -153,27 +153,27 @@ fun SettingsScreen(
                             pinError = null
                             pinMessage = null
                             if (newPin != confirmPin) {
-                                pinError = "PIN baru tidak cocok"
+                                pinError = "Password baru tidak cocok"
                                 return@Button
                             }
-                            if (newPin.length < 4) {
-                                pinError = "PIN minimal 4 digit"
+                            if (newPin.length < 6) {
+                                pinError = "Password minimal 6 karakter"
                                 return@Button
                             }
                             scope.launch {
                                 try {
-                                    api.changePin(ChangePinRequest(user?.username ?: "", oldPin, newPin))
-                                    pinMessage = "PIN berhasil diubah"
+                                    api.changePin(ChangePinRequest(user?.email ?: "", oldPin, newPin))
+                                    pinMessage = "Password berhasil diubah"
                                     oldPin = ""; newPin = ""; confirmPin = ""
                                 } catch (e: Exception) {
-                                    pinError = e.message ?: "Gagal mengubah PIN"
+                                    pinError = e.message ?: "Gagal mengubah password"
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = oldPin.isNotBlank() && newPin.isNotBlank() && confirmPin.isNotBlank()
                     ) {
-                        Text("Ganti PIN")
+                        Text("Ganti Password")
                     }
                 }
             }

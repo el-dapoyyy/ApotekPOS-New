@@ -424,7 +424,7 @@ fun BatchDialog(
                             }
                         }
                     }
-                    Divider()
+                    HorizontalDivider()
                 }
 
                 // Add/Edit form

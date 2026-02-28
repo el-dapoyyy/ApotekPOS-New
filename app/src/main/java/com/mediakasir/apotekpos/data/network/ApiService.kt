@@ -5,13 +5,10 @@ import retrofit2.http.*
 
 interface ApiService {
 
-    // License
-    @POST("license/validate")
-    suspend fun validateLicense(@Body req: LicenseValidateRequest): LicenseInfo
 
     // Auth
     @POST("auth/login")
-    suspend fun login(@Body req: LoginRequest): UserInfo
+    suspend fun login(@Body req: LoginRequest): LoginResponse
 
     @POST("auth/change-pin")
     suspend fun changePin(@Body req: ChangePinRequest): MessageResponse

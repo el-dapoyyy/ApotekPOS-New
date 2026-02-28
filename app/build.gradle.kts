@@ -19,7 +19,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Ganti URL backend sesuai server Anda
+        // ⚠️ Ganti dengan URL API backend Anda (harus diakhiri /api/)
         buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8001/api/\"")
     }
 

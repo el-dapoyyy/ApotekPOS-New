@@ -183,7 +183,7 @@ fun POSScreen(
             onCheckout = {
                 license?.let { lic ->
                     user?.let { u ->
-                        viewModel.checkout(lic.branchId, lic.branchName, u.userId, u.fullName)
+                        viewModel.checkout(lic.branchId, lic.branchName, u.userId, u.name)
                         showCart = false
                     }
                 }
@@ -302,7 +302,7 @@ fun CartBottomSheet(
                     Icon(Icons.Filled.Close, contentDescription = "Tutup")
                 }
             }
-            Divider()
+            HorizontalDivider()
 
             Column(
                 modifier = Modifier
@@ -362,7 +362,7 @@ fun CartBottomSheet(
                                 }
                             }
                         }
-                        Divider()
+                        HorizontalDivider()
                     }
 
                     // Summary
@@ -423,7 +423,7 @@ fun CartBottomSheet(
                                         Surface(
                                             modifier = Modifier.clickable { viewModel.updatePayment(payment.id, method = method) },
                                             shape = RoundedCornerShape(20.dp),
-                                            color = if (payment.method == method) Primary else Surface,
+                                            color = if (payment.method == method) Primary else SurfaceColor,
                                             border = if (payment.method != method) androidx.compose.foundation.BorderStroke(1.dp, Border) else null
                                         ) {
                                             Text(

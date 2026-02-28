@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
 import com.mediakasir.apotekpos.data.network.ApiService
-import com.mediakasir.apotekpos.data.model.LicenseValidateRequest
 import com.mediakasir.apotekpos.data.model.LoginRequest
 import com.mediakasir.apotekpos.data.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -45,34 +44,69 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun validateLicense(key: String, onSuccess: () -> Unit) {
+    fun activateLicense(token: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val info = api.validateLicense(LicenseValidateRequest(key))
-                session.saveLicense(info)
-                _license.value = info
+                // Simpan token ke session
+                session.saveToken(token)
+                // Buat LicenseInfo minimal agar navigasi ke Login berjalan
+                val licenseInfo = LicenseInfo(
+                    branchId     = "",
+                    branchName   = "",
+                    pharmacyName = "MediKasir Apotek"
+                )
+                session.saveLicense(licenseInfo)
+                _license.value = licenseInfo
                 onSuccess()
             } catch (e: Exception) {
-                _error.value = e.message ?: "Lisensi tidak valid"
+                _error.value = e.message ?: "Gagal menyimpan token"
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun login(username: String, pin: String, onSuccess: () -> Unit) {
+    fun login(email: String, password: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val userInfo = api.login(LoginRequest(username, pin))
-                session.saveSession(userInfo, userInfo.token)
-                _user.value = userInfo
-                onSuccess()
+                val response = api.login(LoginRequest(email, password))
+                if (response.success) {
+                    val d = response.data
+                    val userInfo = UserInfo(
+                        userId    = d.user.id.toString(),
+                        name      = d.user.name,
+                        email     = d.user.email,
+                        role      = d.user.role,
+                        branchId  = d.branch.id.toString(),
+                        branchName = d.branch.name,
+                        partnerName = d.partner.name,
+                        token     = d.token
+                    )
+                    val licenseInfo = LicenseInfo(
+                        branchId      = d.branch.id.toString(),
+                        branchName    = d.branch.name,
+                        pharmacyName  = d.partner.name,
+                        address       = d.branch.address,
+                        phone         = d.branch.phone,
+                        status        = d.license.status,
+                        expiredAt     = d.license.expiredAt,
+                        daysRemaining = d.license.daysRemaining,
+                        isTrial       = d.license.isTrial
+                    )
+                    session.saveSession(userInfo, d.token)
+                    session.saveLicense(licenseInfo)
+                    _user.value    = userInfo
+                    _license.value = licenseInfo
+                    onSuccess()
+                } else {
+                    _error.value = response.message
+                }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Username atau PIN salah"
+                _error.value = e.message ?: "Login gagal"
             } finally {
                 _isLoading.value = false
             }

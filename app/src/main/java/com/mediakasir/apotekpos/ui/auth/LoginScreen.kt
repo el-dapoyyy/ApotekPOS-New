@@ -23,6 +23,10 @@ import androidx.compose.ui.unit.sp
 import com.mediakasir.apotekpos.ui.MainViewModel
 import com.mediakasir.apotekpos.ui.theme.Primary
 
+// Kredensial Mode Demo
+private const val DEMO_EMAIL    = "demo@apotek.com"
+private const val DEMO_PASSWORD = "password123"
+
 @Composable
 fun LoginScreen(
     viewModel: MainViewModel,
@@ -32,9 +36,9 @@ fun LoginScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    var username by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("") }
-    var pinVisible by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -66,7 +70,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Divider()
+                HorizontalDivider()
 
                 Text(
                     text = "Login Kasir",
@@ -74,38 +78,69 @@ fun LoginScreen(
                     fontWeight = FontWeight.SemiBold
                 )
 
+                // ── Banner Mode Demo ──────────────────────────────────
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFF3E0),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "🧪 Mode Demo Aktif",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE65100)
+                        )
+                        Text(
+                            "Email: $DEMO_EMAIL\nPassword: $DEMO_PASSWORD",
+                            fontSize = 11.sp,
+                            color = Color(0xFFBF360C)
+                        )
+                        TextButton(
+                            onClick = {
+                                email = DEMO_EMAIL
+                                password = DEMO_PASSWORD
+                            },
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text("↩ Isi Otomatis", fontSize = 11.sp, color = Primary)
+                        }
+                    }
+                }
+                // ─────────────────────────────────────────────────────
+
                 OutlinedTextField(
-                    value = username,
+                    value = email,
                     onValueChange = {
-                        username = it
+                        email = it
                         viewModel.clearError()
                     },
-                    label = { Text("Username") },
+                    label = { Text("Email") },
                     leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
                 OutlinedTextField(
-                    value = pin,
+                    value = password,
                     onValueChange = {
-                        if (it.length <= 8) {
-                            pin = it
-                            viewModel.clearError()
-                        }
+                        password = it
+                        viewModel.clearError()
                     },
-                    label = { Text("PIN") },
+                    label = { Text("Password") },
                     leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null) },
                     trailingIcon = {
-                        IconButton(onClick = { pinVisible = !pinVisible }) {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                if (pinVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
                                 contentDescription = null
                             )
                         }
                     },
-                    visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = error != null,
@@ -114,14 +149,14 @@ fun LoginScreen(
 
                 Button(
                     onClick = {
-                        if (username.isNotBlank() && pin.isNotBlank()) {
-                            viewModel.login(username.trim(), pin, onSuccess)
+                        if (email.isNotBlank() && password.isNotBlank()) {
+                            viewModel.login(email.trim(), password, onSuccess)
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    enabled = !isLoading && username.isNotBlank() && pin.isNotBlank()
+                    enabled = !isLoading && email.isNotBlank() && password.isNotBlank()
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -137,3 +172,4 @@ fun LoginScreen(
         }
     }
 }
+

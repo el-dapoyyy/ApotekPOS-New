@@ -67,9 +67,10 @@ fun ApotekApp(api: ApiService) {
     val isLoading by viewModel.isLoading.collectAsState()
 
     // Determine start destination
+    // Flow: belum ada token → LicenseScreen → LoginScreen → Dashboard
     val startDestination = when {
-        license == null -> Screen.License.route
-        user == null -> Screen.Login.route
+        license == null -> Screen.License.route  // belum masukkan token → LicenseScreen
+        user == null -> Screen.Login.route       // sudah ada token tapi belum login
         else -> Screen.Dashboard.route
     }
 

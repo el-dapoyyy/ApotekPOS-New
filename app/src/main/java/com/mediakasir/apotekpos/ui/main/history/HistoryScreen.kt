@@ -129,14 +129,14 @@ fun TransactionDetailDialog(transaction: Transaction, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(formatDateTime(transaction.createdAt), fontSize = 12.sp, color = TextMuted)
                 Text("Kasir: ${transaction.cashierName}", fontSize = 13.sp)
-                Divider()
+                HorizontalDivider()
                 transaction.items.forEach { item ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${item.productName} (${item.qty})", modifier = Modifier.weight(1f), fontSize = 13.sp)
                         Text(formatIDR(item.subtotal), fontSize = 13.sp)
                     }
                 }
-                Divider()
+                HorizontalDivider()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Subtotal"); Text(formatIDR(transaction.subtotal))
                 }

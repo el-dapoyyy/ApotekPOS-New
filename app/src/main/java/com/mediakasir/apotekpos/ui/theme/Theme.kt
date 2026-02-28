@@ -18,7 +18,7 @@ val Error = Color(0xFFEF4444)
 val Info = Color(0xFF3B82F6)
 
 val Background = Color(0xFFF8FAFC)
-val Surface = Color(0xFFFFFFFF)
+val SurfaceColor = Color(0xFFFFFFFF)
 val Subtle = Color(0xFFF1F5F9)
 val Border = Color(0xFFE2E8F0)
 
@@ -35,7 +35,7 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = Color.White,
     background = Background,
     onBackground = TextPrimary,
-    surface = Surface,
+    surface = SurfaceColor,
     onSurface = TextPrimary,
     error = Error,
     onError = Color.White,
