@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -68,15 +69,17 @@ fun StokScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = {
                     editingProduct = null
                     showProductDialog = true
                 },
-                containerColor = Primary
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Tambah Produk", tint = Color.White)
-            }
+                containerColor = Primary,
+                contentColor = Color.White,
+                icon = { Icon(Icons.Filled.Add, contentDescription = "Tambah Produk") },
+                text = { Text("Tambah Produk", fontWeight = FontWeight.Bold) },
+                shape = RoundedCornerShape(16.dp)
+            )
         }
     ) { innerPadding ->
         Column(
@@ -85,16 +88,24 @@ fun StokScreen(
                 .padding(innerPadding)
                 .background(Background)
         ) {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Primary)
-                    .padding(16.dp)
+            // Curvy Header with Search
+            Surface(
+                color = Primary,
+                shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text("Manajemen Stok", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp)
+                ) {
+                    Text("Manajemen Stok", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Kelola inventaris dan batch produk", fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f))
+                    
+                    Spacer(modifier = Modifier.height(20.dp))
+                    
                     OutlinedTextField(
                         value = search,
                         onValueChange = {
@@ -106,16 +117,20 @@ fun StokScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.1f),
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color.White,
-                            unfocusedBorderColor = Color.White.copy(0.5f),
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
                             cursorColor = Color.White
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(16.dp)
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (isLoading && products.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -217,32 +232,35 @@ fun ProductListItem(
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     val catColor = getCategoryColor(product.category)
+    val isLowStock = product.currentStock <= product.minStock
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(shape = RoundedCornerShape(6.dp), color = catColor.copy(0.15f)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(shape = RoundedCornerShape(8.dp), color = catColor.copy(alpha = 0.15f)) {
                         Text(
                             product.category,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             fontSize = 10.sp,
                             color = catColor,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    if (product.currentStock <= product.minStock) {
-                        Surface(shape = RoundedCornerShape(6.dp), color = Warning.copy(0.15f)) {
+                    if (isLowStock) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = Warning.copy(alpha = 0.15f)) {
                             Text(
                                 "Stok Rendah",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 fontSize = 10.sp,
                                 color = Warning,
                                 fontWeight = FontWeight.Bold
@@ -250,21 +268,65 @@ fun ProductListItem(
                         }
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                Text(product.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text("${product.unit} | ${formatIDR(product.sellPrice)}", fontSize = 13.sp, color = TextSecondary)
-                Text("Stok: ${product.currentStock} | Min: ${product.minStock}", fontSize = 13.sp, color = TextMuted)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                IconButton(onClick = onBatch) {
-                    Icon(Icons.Filled.Inventory2, contentDescription = "Batch", tint = Info)
+                
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isLowStock) Error.copy(alpha = 0.1f) else Primary.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        "Stok: ${product.currentStock}",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isLowStock) Error else PrimaryDark
+                    )
                 }
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Primary)
+            }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(product.name, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = TextPrimary)
+                    Spacer(Modifier.height(4.dp))
+                    Text("${product.unit} • ${formatIDR(product.sellPrice)}", fontSize = 14.sp, color = TextSecondary)
+                    Spacer(Modifier.height(2.dp))
+                    Text("Min. Stok: ${product.minStock}", fontSize = 12.sp, color = TextMuted)
+                }
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Info.copy(alpha = 0.1f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = onBatch) {
+                            Icon(Icons.Filled.Inventory2, contentDescription = "Batch", tint = Info, modifier = Modifier.size(20.dp))
+                        }
                     }
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Hapus", tint = Error)
+                    Surface(
+                        shape = CircleShape,
+                        color = Primary.copy(alpha = 0.1f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Primary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = Error.copy(alpha = 0.1f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Hapus", tint = Error, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }

@@ -87,60 +87,76 @@ fun POSScreen(
                 .padding(innerPadding)
                 .background(Background)
         ) {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Primary)
-                    .padding(16.dp)
+            // Curvy Header with Search
+            Surface(
+                color = Primary,
+                shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp)
                 ) {
-                    Text("Kasir", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    BadgedBox(
-                        badge = {
-                            if (viewModel.getCartCount() > 0) {
-                                Badge { Text(viewModel.getCartCount().toString()) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Menu Kasir", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Siap melayani pelanggan", fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f))
+                        }
+                        BadgedBox(
+                            badge = {
+                                if (viewModel.getCartCount() > 0) {
+                                    Badge(containerColor = Error, contentColor = Color.White) {
+                                        Text(viewModel.getCartCount().toString(), fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.2f),
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                IconButton(onClick = { showCart = true }) {
+                                    Icon(Icons.Filled.ShoppingCart, contentDescription = "Keranjang", tint = Color.White)
+                                }
                             }
                         }
-                    ) {
-                        IconButton(onClick = { showCart = true }) {
-                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Keranjang", tint = Color.White)
-                        }
                     }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    OutlinedTextField(
+                        value = search,
+                        onValueChange = {
+                            search = it
+                            license?.branchId?.let { bid -> viewModel.loadProducts(bid, it) }
+                        },
+                        placeholder = { Text("Cari produk atau barcode...", color = Color.White.copy(alpha = 0.7f)) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.White) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.1f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            cursorColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
                 }
             }
 
-            // Search
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Primary)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-            ) {
-                OutlinedTextField(
-                    value = search,
-                    onValueChange = {
-                        search = it
-                        license?.branchId?.let { bid -> viewModel.loadProducts(bid, it) }
-                    },
-                    placeholder = { Text("Cari produk atau barcode...", color = Color.White.copy(alpha = 0.7f)) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.White) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                        cursorColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Product Grid
             if (isLoading) {
@@ -206,61 +222,78 @@ fun POSScreen(
 @Composable
 fun ProductCard(product: Product, onClick: () -> Unit) {
     val catColor = getCategoryColor(product.category)
+    val isOutOfStock = product.currentStock <= 0
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = product.currentStock > 0) { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = if (product.currentStock <= 0) Color(0xFFF8F8F8) else Color.White)
+            .clickable(enabled = !isOutOfStock) { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isOutOfStock) 0.dp else 4.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isOutOfStock) Color(0xFFF1F5F9) else Color.White)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = catColor.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    product.category,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = catColor
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                product.name,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (product.currentStock <= 0) TextMuted else TextPrimary,
-                maxLines = 2
-            )
-            Text(product.unit, fontSize = 11.sp, color = TextMuted)
-            Spacer(Modifier.height(8.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    formatIDR(product.sellPrice),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Primary
-                )
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (product.currentStock <= 0) Color(0xFFFEF2F2) else Secondary
+                    shape = RoundedCornerShape(8.dp),
+                    color = catColor.copy(alpha = 0.15f)
                 ) {
                     Text(
-                        if (product.currentStock <= 0) "Habis" else "Stok: ${product.currentStock}",
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        product.category,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         fontSize = 10.sp,
-                        color = if (product.currentStock <= 0) Error else PrimaryDark,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold,
+                        color = catColor
+                    )
+                }
+                
+                if (isOutOfStock) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Error.copy(alpha = 0.1f)
+                    ) {
+                        Text(
+                            "Habis",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 10.sp,
+                            color = Error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Text(
+                        "Sisa: ${product.currentStock}",
+                        fontSize = 11.sp,
+                        color = PrimaryDark,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Text(
+                product.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isOutOfStock) TextMuted else TextPrimary,
+                maxLines = 2,
+                lineHeight = 20.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(product.unit, fontSize = 12.sp, color = TextMuted)
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Text(
+                formatIDR(product.sellPrice),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isOutOfStock) TextMuted else Primary
+            )
         }
     }
 }
