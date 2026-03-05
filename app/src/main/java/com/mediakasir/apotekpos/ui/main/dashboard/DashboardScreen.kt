@@ -102,6 +102,7 @@ fun DashboardScreen(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                             fontSize = 13.sp,
                             color = Color.White,
+
                             fontWeight = FontWeight.Bold
                         )
                     }

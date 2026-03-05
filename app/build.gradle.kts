@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.mediakasir.apotekpos"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.mediakasir.apotekpos"
-        minSdk = 26
-        targetSdk = 35
+        minSdk = 24
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
