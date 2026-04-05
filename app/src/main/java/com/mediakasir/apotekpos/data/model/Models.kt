@@ -52,13 +52,22 @@ data class LoginLicenseData(
     @SerializedName("is_trial") val isTrial: Boolean
 )
 
+/** Baris `user_devices` di server — `id` dipakai header `X-Device-ID` / FK `sync_logs.device_id`. */
+data class UserDeviceSummary(
+    val id: Int? = null,
+    @SerializedName("device_id") val deviceFingerprint: String? = null,
+)
+
 data class LoginResponseData(
     val user: LoginUserData,
     val branch: LoginBranchData?,
     val partner: LoginPartnerData,
     val license: LoginLicenseData,
     val token: String,
-    @SerializedName("expires_at") val expiresAt: String? = null
+    @SerializedName("expires_at") val expiresAt: String? = null,
+    @SerializedName("user_device_id") val userDeviceId: Int? = null,
+    @SerializedName("user_device") val userDevice: UserDeviceSummary? = null,
+    @SerializedName("device") val device: UserDeviceSummary? = null,
 )
 
 data class LoginResponse(
@@ -78,7 +87,19 @@ data class AuthMeData(
     val user: AuthMeUser? = null,
     val branch: LoginBranchData? = null,
     @SerializedName("active_shift") val activeShift: ActiveShiftInfo? = null,
+    @SerializedName("user_device_id") val userDeviceId: Int? = null,
+    @SerializedName("user_device") val userDevice: UserDeviceSummary? = null,
+    @SerializedName("device") val device: UserDeviceSummary? = null,
 )
+
+/** PK `user_devices.id` untuk header `X-Device-ID` (FK `sync_logs.device_id`). */
+object DeviceHeaderIds {
+    fun fromLogin(d: LoginResponseData): Int? =
+        d.userDeviceId ?: d.userDevice?.id ?: d.device?.id
+
+    fun fromMe(d: AuthMeData): Int? =
+        d.userDeviceId ?: d.userDevice?.id ?: d.device?.id
+}
 
 data class AuthMeUser(
     val id: Int,

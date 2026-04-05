@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -81,6 +82,7 @@ import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.effectiveBranchName
 import com.mediakasir.apotekpos.ui.theme.*
 import com.mediakasir.apotekpos.utils.formatDateTime
+import com.mediakasir.apotekpos.utils.formatDigitsAsIndonesianNumber
 import com.mediakasir.apotekpos.utils.formatIDR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,8 +104,11 @@ fun POSScreen(
     val shiftGateResolved by viewModel.shiftGateResolved.collectAsState()
     val shiftBlocking by viewModel.shiftBlocking.collectAsState()
     val startingShift by viewModel.startingShift.collectAsState()
+    val shiftDialogError by viewModel.shiftDialogError.collectAsState()
     val pendingOut by viewModel.pendingSyncCount.collectAsState()
     val netOk by viewModel.isNetworkConnected.collectAsState()
+    val posKasirCatalogBlocked by viewModel.posKasirCatalogBlocked.collectAsState()
+    val posKasirAccessDialogText by viewModel.posKasirAccessDialogText.collectAsState()
 
     var search by remember { mutableStateOf("") }
     var showCart by remember { mutableStateOf(false) }
@@ -117,15 +122,20 @@ fun POSScreen(
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         val text = result?.contents ?: return@rememberLauncherForActivityResult
         search = text
-        if (user != null && shiftGateResolved && !shiftBlocking) {
+        if (user != null && shiftGateResolved && !shiftBlocking && !posKasirCatalogBlocked) {
             viewModel.loadProducts(branchId, text)
         }
     }
 
     LaunchedEffect(user?.userId, branchId) {
         if (user != null) {
-            viewModel.loadProducts(branchId)
+            viewModel.checkActiveShift(userRole = user.role)
         }
+    }
+
+    LaunchedEffect(user?.userId, branchId, shiftGateResolved, shiftBlocking, posKasirCatalogBlocked, search) {
+        if (user == null || !shiftGateResolved || shiftBlocking || posKasirCatalogBlocked) return@LaunchedEffect
+        viewModel.loadProducts(branchId, search)
     }
 
     LaunchedEffect(error) {
@@ -253,7 +263,7 @@ fun POSScreen(
                             value = search,
                             onValueChange = {
                                 search = it
-                                if (user != null && shiftGateResolved && !shiftBlocking) {
+                                if (user != null && shiftGateResolved && !shiftBlocking && !posKasirCatalogBlocked) {
                                     viewModel.loadProducts(branchId, it)
                                 }
                             },
@@ -323,6 +333,13 @@ fun POSScreen(
                             Spacer(Modifier.height(12.dp))
                             Text("Memeriksa shift…", color = TextMuted, fontSize = 14.sp)
                         }
+                    }
+                    posKasirCatalogBlocked -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "POS hanya untuk akun kasir.",
+                            color = TextMuted,
+                            fontSize = 15.sp,
+                        )
                     }
                     isLoading && products.isEmpty() -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = PosWebPrimary)
@@ -412,11 +429,26 @@ fun POSScreen(
             if (user != null && shiftGateResolved && shiftBlocking) {
                 OpenShiftGateDialog(
                     isLoading = startingShift,
+                    errorMessage = shiftDialogError,
+                    onClearError = { viewModel.clearShiftDialogError() },
                     onSubmit = { viewModel.submitStartingShift(it) },
                 )
             }
             }
         }
+    }
+
+    posKasirAccessDialogText?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPosKasirAccessDialog() },
+            title = { Text("Akses ditolak", fontWeight = FontWeight.Bold) },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissPosKasirAccessDialog() }) {
+                    Text("Mengerti")
+                }
+            },
+        )
     }
 
     // Receipt Dialog
@@ -434,9 +466,12 @@ fun POSScreen(
 @Composable
 private fun OpenShiftGateDialog(
     isLoading: Boolean,
+    errorMessage: String?,
+    onClearError: () -> Unit,
     onSubmit: (String) -> Unit,
 ) {
-    var cash by remember { mutableStateOf("") }
+    var digits by remember { mutableStateOf("") }
+    val display = formatDigitsAsIndonesianNumber(digits)
     Dialog(
         onDismissRequest = { },
         properties = DialogProperties(
@@ -445,52 +480,66 @@ private fun OpenShiftGateDialog(
             dismissOnClickOutside = false,
         ),
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = SurfaceColor,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .padding(horizontal = 24.dp)
+                    .widthIn(max = 440.dp)
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             ) {
-                Text("Buka shift", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Masukkan modal awal kas sebelum bertransaksi.",
-                    fontSize = 14.sp,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(24.dp))
-                OutlinedTextField(
-                    value = cash,
-                    onValueChange = { cash = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Modal awal (Rp)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    enabled = !isLoading,
-                )
-                Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = { onSubmit(cash) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = PosWebPrimary),
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Text("Mulai shift", fontWeight = FontWeight.Bold)
+                Column(Modifier.padding(24.dp)) {
+                    Text("Buka shift", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Masukkan modal awal kas sebelum bertransaksi.",
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(errorMessage, color = Error, fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = display,
+                        onValueChange = { raw ->
+                            onClearError()
+                            digits = raw.filter { it.isDigit() }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Modal awal (Rp)") },
+                        placeholder = { Text("0") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        enabled = !isLoading,
+                        isError = !errorMessage.isNullOrBlank(),
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = { onSubmit(digits) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        enabled = !isLoading && digits.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(containerColor = PosWebPrimary),
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Text("Mulai shift", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

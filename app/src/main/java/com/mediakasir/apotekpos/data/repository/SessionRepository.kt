@@ -8,7 +8,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
-import com.mediakasir.apotekpos.util.ApiDeviceId
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -22,12 +21,21 @@ private val Context.dataStore by preferencesDataStore("apotek_session")
 @Singleton
 class SessionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val gson: Gson
+    private val gson: Gson,
 ) {
     private val TOKEN_KEY = stringPreferencesKey("token")
     private val USER_KEY = stringPreferencesKey("user")
     private val LICENSE_KEY = stringPreferencesKey("license")
-    private val DEVICE_ID_KEY = stringPreferencesKey("device_id")
+    /** Fingerprint perangkat untuk body login (`device_id`) — biasanya ANDROID_ID penuh. */
+    private val LOGIN_DEVICE_FINGERPRINT_KEY = stringPreferencesKey("login_device_fingerprint")
+    /**
+     * PK baris `user_devices.id` untuk header `X-Device-ID`.
+     * Wajib selaras dengan FK `sync_logs.device_id` di backend.
+     */
+    private val SERVER_USER_DEVICE_ROW_ID_KEY = stringPreferencesKey("server_user_device_row_id")
+    /** Legacy: dulu dipakai untuk CRC/hex palsu — dibuang saat migrasi. */
+    private val DEVICE_ID_LEGACY_KEY = stringPreferencesKey("device_id")
+
     /** ISO local date (yyyy-MM-dd) untuk rollover sesi kasir harian */
     private val BUSINESS_DAY_KEY = stringPreferencesKey("business_calendar_day")
 
@@ -38,27 +46,34 @@ class SessionRepository @Inject constructor(
     val licenseFlow: Flow<LicenseInfo?> = context.dataStore.data.map { prefs ->
         prefs[LICENSE_KEY]?.let { gson.fromJson(it, LicenseInfo::class.java) }
     }
-    val deviceIdFlow: Flow<String?> = context.dataStore.data.map { prefs ->
-        prefs[DEVICE_ID_KEY]
-    }
 
     suspend fun getToken(): String? = tokenFlow.first()
     suspend fun getUser(): UserInfo? = userFlow.first()
     suspend fun getLicense(): LicenseInfo? = licenseFlow.first()
 
-    suspend fun getDeviceId(): String {
+    /**
+     * Untuk JSON login: string stabil per perangkat (ANDROID_ID), agar backend cocokkan ke `user_devices`.
+     */
+    suspend fun getLoginDeviceFingerprint(): String {
+        val prefs = context.dataStore.data.first()
+        prefs[LOGIN_DEVICE_FINGERPRINT_KEY]?.takeIf { it.isNotBlank() }?.let { return it }
         val androidId = Settings.Secure.getString(
             context.contentResolver,
             Settings.Secure.ANDROID_ID,
         ).orEmpty()
-        val normalized = ApiDeviceId.fromAndroidId(androidId)
-        val stored = deviceIdFlow.first()
-        if (stored != normalized) {
-            context.dataStore.edit { prefs ->
-                prefs[DEVICE_ID_KEY] = normalized
-            }
+        context.dataStore.edit { e ->
+            e.remove(DEVICE_ID_LEGACY_KEY)
+            e[LOGIN_DEVICE_FINGERPRINT_KEY] = androidId
         }
-        return normalized
+        return androidId
+    }
+
+    /** Nilai header `X-Device-ID` = `user_devices.id` (integer sebagai string). */
+    suspend fun getServerUserDeviceRowIdForHeader(): String? =
+        context.dataStore.data.first()[SERVER_USER_DEVICE_ROW_ID_KEY]?.takeIf { it.isNotBlank() }
+
+    suspend fun saveServerUserDeviceRowId(id: Int) {
+        context.dataStore.edit { it[SERVER_USER_DEVICE_ROW_ID_KEY] = id.toString() }
     }
 
     suspend fun saveSession(user: UserInfo, token: String) {
@@ -106,6 +121,7 @@ class SessionRepository @Inject constructor(
             prefs.remove(TOKEN_KEY)
             prefs.remove(USER_KEY)
             prefs.remove(LICENSE_KEY)
+            prefs.remove(SERVER_USER_DEVICE_ROW_ID_KEY)
         }
     }
 

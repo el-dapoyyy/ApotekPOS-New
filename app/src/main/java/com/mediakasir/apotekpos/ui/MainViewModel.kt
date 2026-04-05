@@ -10,6 +10,7 @@ import com.mediakasir.apotekpos.data.model.GoogleLoginRequest
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.LoginRequest
 import com.mediakasir.apotekpos.data.model.LoginResponse
+import com.mediakasir.apotekpos.data.model.DeviceHeaderIds
 import com.mediakasir.apotekpos.data.model.UserInfo
 import com.mediakasir.apotekpos.data.model.blocksAppUse
 import com.mediakasir.apotekpos.data.model.blocksLogin
@@ -78,6 +79,7 @@ class MainViewModel @Inject constructor(
                 _user.value = null
                 return Screen.Login.route
             }
+            ensureServerUserDeviceRowIdFromMe()
             return Screen.POS.route
         }
         return Screen.Login.route
@@ -95,6 +97,9 @@ class MainViewModel @Inject constructor(
             } else {
                 _license.value = lic
                 _user.value = u
+                if (u != null) {
+                    ensureServerUserDeviceRowIdFromMe()
+                }
             }
         }
     }
@@ -165,6 +170,8 @@ class MainViewModel @Inject constructor(
             )
             session.saveSession(userInfo, d.token)
             session.saveLicense(licenseInfo)
+            DeviceHeaderIds.fromLogin(d)?.let { session.saveServerUserDeviceRowId(it) }
+            ensureServerUserDeviceRowIdFromMe()
             _user.value = userInfo
             _license.value = licenseInfo
             onSuccess()
@@ -173,8 +180,19 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    private suspend fun ensureServerUserDeviceRowIdFromMe() {
+        if (!session.getServerUserDeviceRowIdForHeader().isNullOrBlank()) return
+        if (session.getToken().isNullOrBlank()) return
+        try {
+            val env = api.authMe()
+            env.data?.let { data -> DeviceHeaderIds.fromMe(data)?.let { session.saveServerUserDeviceRowId(it) } }
+        } catch (_: Exception) {
+            // Biarkan layar berikutnya (POS) / coba lagi dari auth/me di ViewModel POS
+        }
+    }
+
     private suspend fun buildPasswordLoginRequest(email: String, password: String): LoginRequest {
-        val deviceId = session.getDeviceId()
+        val deviceId = session.getLoginDeviceFingerprint()
         val deviceName = listOf(Build.MANUFACTURER, Build.MODEL)
             .filter { it.isNotBlank() }
             .distinct()
@@ -191,7 +209,7 @@ class MainViewModel @Inject constructor(
     }
 
     private suspend fun buildGoogleLoginRequest(idToken: String): GoogleLoginRequest {
-        val deviceId = session.getDeviceId()
+        val deviceId = session.getLoginDeviceFingerprint()
         val deviceName = listOf(Build.MANUFACTURER, Build.MODEL)
             .filter { it.isNotBlank() }
             .distinct()

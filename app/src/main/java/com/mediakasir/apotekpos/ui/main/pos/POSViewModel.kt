@@ -19,10 +19,13 @@ import com.mediakasir.apotekpos.data.model.Transaction
 import com.mediakasir.apotekpos.data.model.TransactionItem
 import com.mediakasir.apotekpos.data.model.ShiftStartRequest
 import com.mediakasir.apotekpos.data.model.TransactionSyncRequest
+import com.mediakasir.apotekpos.data.model.DeviceHeaderIds
 import com.mediakasir.apotekpos.data.model.toProduct
 import com.mediakasir.apotekpos.data.network.ApiService
+import com.mediakasir.apotekpos.data.repository.SessionRepository
 import com.mediakasir.apotekpos.util.NetworkStatus
 import com.mediakasir.apotekpos.util.formatApiThrowable
+import com.mediakasir.apotekpos.utils.parseMoneyInputToDouble
 import com.mediakasir.apotekpos.util.isLikelyNetworkFailure
 import com.mediakasir.apotekpos.worker.OfflineSyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,6 +62,7 @@ class POSViewModel @Inject constructor(
     private val pendingSyncDao: PendingSyncDao,
     private val gson: Gson,
     private val networkStatus: NetworkStatus,
+    private val session: SessionRepository,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -105,28 +109,71 @@ class POSViewModel @Inject constructor(
     private val _isNetworkConnected = MutableStateFlow(true)
     val isNetworkConnected: StateFlow<Boolean> = _isNetworkConnected.asStateFlow()
 
+    /** Non-kasir: blokir katalog; tetap true setelah alert ditutup. */
+    private val _posKasirCatalogBlocked = MutableStateFlow(false)
+    val posKasirCatalogBlocked: StateFlow<Boolean> = _posKasirCatalogBlocked.asStateFlow()
+
+    /** Teks dialog akses; null = tidak tampil. */
+    private val _posKasirAccessDialogText = MutableStateFlow<String?>(null)
+    val posKasirAccessDialogText: StateFlow<String?> = _posKasirAccessDialogText.asStateFlow()
+
+    fun dismissPosKasirAccessDialog() {
+        _posKasirAccessDialogText.value = null
+    }
+
+    private val _shiftDialogError = MutableStateFlow<String?>(null)
+    val shiftDialogError: StateFlow<String?> = _shiftDialogError.asStateFlow()
+
+    fun clearShiftDialogError() {
+        _shiftDialogError.value = null
+    }
+
     init {
         viewModelScope.launch {
             pendingSyncDao.observeCount().collect { _pendingSyncCount.value = it }
         }
     }
 
-    fun checkActiveShift() {
+    /**
+     * POS hanya untuk akun kasir (disamakan dengan web). Non-kasir: alert saja, tanpa logout.
+     * Peran diambil dari `auth/me` bila ada, fallback ke [userRole] dari sesi.
+     */
+    fun checkActiveShift(userRole: String? = null) {
         viewModelScope.launch {
             _shiftGateResolved.value = false
+            _posKasirCatalogBlocked.value = false
+            _posKasirAccessDialogText.value = null
+            val notKasirMessage =
+                "Halaman POS hanya untuk akun kasir. Untuk bertransaksi di kasir, gunakan akun kasir."
             try {
                 if (!networkStatus.isConnected()) {
+                    val sessionRole = userRole?.trim()?.lowercase().orEmpty()
+                    if (sessionRole != "kasir") {
+                        _posKasirCatalogBlocked.value = true
+                        _posKasirAccessDialogText.value = notKasirMessage
+                    }
                     _shiftBlocking.value = false
                     return@launch
                 }
                 try {
                     withTimeout(AUTH_ME_TIMEOUT_MS) {
                         val env = api.authMe()
+                        env.data?.let { data ->
+                            DeviceHeaderIds.fromMe(data)?.let { session.saveServerUserDeviceRowId(it) }
+                        }
                         if (env.success != true) {
                             _shiftBlocking.value = false
-                        } else {
-                            _shiftBlocking.value = env.data?.activeShift == null
+                            return@withTimeout
                         }
+                        val effectiveRole = env.data?.user?.role?.trim()?.lowercase()
+                            ?: userRole?.trim()?.lowercase().orEmpty()
+                        if (effectiveRole != "kasir") {
+                            _posKasirCatalogBlocked.value = true
+                            _posKasirAccessDialogText.value = notKasirMessage
+                            _shiftBlocking.value = false
+                            return@withTimeout
+                        }
+                        _shiftBlocking.value = env.data?.activeShift == null
                     }
                 } catch (e: TimeoutCancellationException) {
                     _shiftBlocking.value = false
@@ -143,9 +190,10 @@ class POSViewModel @Inject constructor(
 
     fun submitStartingShift(cashInput: String) {
         viewModelScope.launch {
-            val cash = cashInput.trim().replace(",", ".").toDoubleOrNull()
-            if (cash == null || cash < 0) {
-                _error.value = "Masukkan modal awal yang valid (angka)."
+            _shiftDialogError.value = null
+            val cash = parseMoneyInputToDouble(cashInput)
+            if (cash == null || cash <= 0) {
+                _shiftDialogError.value = "Masukkan nominal modal awal (contoh: 200.000 atau 500000)."
                 return@launch
             }
             _startingShift.value = true
@@ -158,9 +206,13 @@ class POSViewModel @Inject constructor(
                     _shiftBlocking.value = false
                 }
             } catch (e: TimeoutCancellationException) {
-                _error.value = "Buka shift habis waktu. Coba lagi."
+                val msg = "Buka shift habis waktu. Coba lagi."
+                _shiftDialogError.value = msg
+                _error.value = msg
             } catch (e: Exception) {
-                _error.value = formatApiThrowable(e, gson)
+                val msg = formatApiThrowable(e, gson)
+                _shiftDialogError.value = msg
+                _error.value = msg
             } finally {
                 _startingShift.value = false
             }

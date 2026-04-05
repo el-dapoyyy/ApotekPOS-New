@@ -25,10 +25,10 @@ class AuthInterceptor @Inject constructor(
             builder.addHeader("Authorization", "Bearer $token")
         }
 
-        // Tambahkan X-Device-ID jika tersedia dari SessionRepository
-        val deviceId = runBlocking { sessionRepository.getDeviceId() }
-        if (!deviceId.isNullOrEmpty()) {
-            builder.addHeader("X-Device-ID", deviceId)
+        // FK ke user_devices.id — bukan fingerprint login; diisi setelah login / auth/me.
+        val deviceRowId = runBlocking { sessionRepository.getServerUserDeviceRowIdForHeader() }
+        if (!deviceRowId.isNullOrEmpty()) {
+            builder.addHeader("X-Device-ID", deviceRowId)
         }
 
         val request = builder.build()
