@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">APO-Apps</string>
+    <string name="wordmark_prefix">APO-</string>
+    <string name="wordmark_suffix">Apps</string>
+    <string name="app_tagline">Sistem Manajemen Apotek Modern</string>
+    <string name="premium_edition">Premium Edition</string>
+    <string name="splash_footer">© ApoApps. Untuk apotek Indonesia.</string>
+
+    <string name="nav_home">Beranda</string>
+    <string name="nav_pos">Kasir</string>
+    <string name="nav_stock">Stok</string>
+    <string name="nav_history">Riwayat</string>
+    <string name="nav_settings">Setelan</string>
+
+    <string name="login_welcome_back">Selamat Datang Kembali</string>
+    <string name="login_subtitle">Masuk untuk mengakses dashboard apotek Anda</string>
+    <string name="login_email_label">Alamat Email</string>
+    <string name="login_email_placeholder">nama@apotek.com</string>
+    <string name="login_password_label">Kata Sandi</string>
+    <string name="login_password_placeholder">Masukkan kata sandi</string>
+    <string name="login_submit">Masuk</string>
+    <string name="login_error_generic">Gagal masuk</string>
+    <string name="login_with_google">Lanjutkan dengan Google</string>
+    <string name="login_or">atau</string>
+    <string name="login_google_setup_hint">Tambahkan dev.googleWebClientId di local.properties (OAuth Web client ID dari Google Cloud).</string>
+    <string name="error_network_unreachable">Tidak dapat menghubungi server. Periksa internet, DNS emulator, atau atur dev.baseUrl di local.properties untuk API lokal.</string>
+    <string name="error_network_debug_base">[Debug] App memanggil: %1$s</string>
+    <string name="error_network_timeout">Koneksi habis waktu. Coba lagi atau periksa jaringan.</string>
+    <string name="error_login_google_http">Masuk Google gagal (%1$d). Server mungkin belum mendukung POST auth/google.</string>
+    <string name="login_license_blocked">Lisensi apotek Anda kedaluwarsa atau tidak aktif. Hubungi pemilik atau administrator.</string>
+
+    <string name="settings_reset_app">Reset data aplikasi</string>
+    <string name="settings_reset_app_message">Hapus semua sesi tersimpan di perangkat ini. Anda harus masuk lagi.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="action_cancel">Batal</string>
+</resources>

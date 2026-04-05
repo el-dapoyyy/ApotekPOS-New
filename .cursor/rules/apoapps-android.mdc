@@ -1,0 +1,15 @@
+---
+description: APO-Apps Android (ApotekPOS) — API, auth, UI parity with ApoApps web
+globs: app/**/*.kt,app/**/*.kts,app/src/main/res/**/*
+---
+
+# APO-Apps Android
+
+- **Product name:** APO-Apps. Launcher label from `strings.xml` (`app_name`).
+- **API contract:** Root doc in repo: `API_DOKUMENTASI_ANDROID.md`. Laravel reference: `routes/api.php` (host project `apoapps`).
+- **Base URL:** `BuildConfig.BASE_URL` — debug `http://10.0.2.2/api/` (emulator → Laragon), release `https://api.apoapps.id/api/` (no `/v1` segment). Debug adds `Host: apoapps.test` via `DEV_API_HOST_HEADER` for Laragon name-based vhosts (avoids HTTP 404 to wrong site).
+- **Auth:** Laravel Sanctum. After login, store token in DataStore; send `Authorization: Bearer <token>` and `X-Device-ID` on authenticated calls. Login body **must** include `device_id` (and optional `device_name`, `device_model`). No manual token entry in UI.
+- **Cold start flow:** `Splash` → `Login` or main tabs if token + user exist in DataStore.
+- **UI / brand:** Match web auth styling — CSS tokens from `apoapps` `resources/views/components/layouts/auth.blade.php` (e.g. `--apo-primary` #059669, teal secondary, slate→teal gradient). Typography: prefer Plus Jakarta Sans via `res/font` + `Type.kt`; fallback is system sans with matching weights. Wordmark: `APO-` + emerald `Apps`.
+
+When adding screens or API calls, keep naming and patterns consistent with existing `data/network/ApiService.kt` and Material 3 theme in `ui/theme/`.
