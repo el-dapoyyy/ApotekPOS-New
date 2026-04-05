@@ -1,13 +1,15 @@
 package com.mediakasir.apotekpos.data.network
 
-import android.provider.Settings
 import com.mediakasir.apotekpos.data.repository.SessionRepository
-import okhttp3.MediaType.Companion.toMediaType
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 import javax.inject.Inject
 
+/**
+ * Setiap request (setelah login): header `Authorization: Bearer` + token Sanctum, plus `Accept: application/json`.
+ * Scoping cabang/partner di backend mengikuti token — bukan dari parameter cabang manual di URL.
+ */
 class AuthInterceptor @Inject constructor(
     private val sessionRepository: SessionRepository
 ) : Interceptor {
@@ -19,7 +21,6 @@ class AuthInterceptor @Inject constructor(
             .addHeader("Accept", "application/json")
             .addHeader("Content-Type", "application/json")
 
-        // Tambahkan Authorization jika token ada
         if (token != null && token.isNotEmpty()) {
             builder.addHeader("Authorization", "Bearer $token")
         }

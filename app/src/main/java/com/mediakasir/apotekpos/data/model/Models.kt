@@ -1,13 +1,25 @@
 package com.mediakasir.apotekpos.data.model
 
 import com.google.gson.annotations.SerializedName
+import java.time.LocalDate
 
 // ===== Auth Models =====
 
-// --- Login Request ---
+// --- Login Request (POST /api/auth/login): email, password, device_id wajib; nama/model perangkat opsional. ---
 data class LoginRequest(
     val email: String,
-    val password: String
+    val password: String,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("device_name") val deviceName: String? = null,
+    @SerializedName("device_model") val deviceModel: String? = null
+)
+
+/** POST `auth/google` — backend must verify `id_token` (Google OAuth Web client). */
+data class GoogleLoginRequest(
+    @SerializedName("id_token") val idToken: String,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("device_name") val deviceName: String? = null,
+    @SerializedName("device_model") val deviceModel: String? = null
 )
 
 // --- Login Response (nested) ---
@@ -21,8 +33,8 @@ data class LoginUserData(
 data class LoginBranchData(
     val id: Int,
     val name: String,
-    val address: String,
-    val phone: String,
+    val address: String? = null,
+    val phone: String? = null,
     @SerializedName("sia_number") val siaNumber: String? = null,
     @SerializedName("apoteker_name") val apotekerName: String? = null,
     @SerializedName("sipa_number") val sipaNumber: String? = null
@@ -42,17 +54,53 @@ data class LoginLicenseData(
 
 data class LoginResponseData(
     val user: LoginUserData,
-    val branch: LoginBranchData,
+    val branch: LoginBranchData?,
     val partner: LoginPartnerData,
     val license: LoginLicenseData,
     val token: String,
-    @SerializedName("expires_at") val expiresAt: String
+    @SerializedName("expires_at") val expiresAt: String? = null
 )
 
 data class LoginResponse(
     val success: Boolean,
     val message: String,
     val data: LoginResponseData
+)
+
+// --- GET /api/auth/me ---
+data class AuthMeEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: AuthMeData? = null,
+)
+
+data class AuthMeData(
+    val user: AuthMeUser? = null,
+    val branch: LoginBranchData? = null,
+    @SerializedName("active_shift") val activeShift: ActiveShiftInfo? = null,
+)
+
+data class AuthMeUser(
+    val id: Int,
+    val name: String,
+    val email: String,
+    val role: String,
+)
+
+data class ActiveShiftInfo(
+    val id: Int,
+    @SerializedName("clock_in") val clockIn: String,
+    @SerializedName("starting_cash") val startingCash: Double,
+)
+
+/** POST buka shift — path backend bisa disesuaikan jika berbeda. */
+data class ShiftStartRequest(
+    @SerializedName("starting_cash") val startingCash: Double,
+)
+
+data class ShiftStartEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
 )
 
 // --- Session Models (disimpan di DataStore) ---
@@ -79,6 +127,33 @@ data class LicenseInfo(
     @SerializedName("is_trial") val isTrial: Boolean = false
 )
 
+private fun licenseExpiredByDate(expiredAtRaw: String): Boolean {
+    val s = expiredAtRaw.trim()
+    if (s.length < 10) return false
+    val parsed = runCatching { LocalDate.parse(s.take(10)) }.getOrNull() ?: return false
+    return parsed.isBefore(LocalDate.now())
+}
+
+private fun licenseStatusBlocks(statusRaw: String): Boolean {
+    val s = statusRaw.trim().lowercase()
+    return s.isNotEmpty() && s != "active"
+}
+
+/**
+ * Backend biasanya mengembalikan `success: false` + `LICENSE_EXPIRED` (§ login API).
+ * Ini pertahanan tambahan jika respons sukses tapi field lisensi tidak konsisten.
+ */
+fun LoginLicenseData.blocksLogin(): Boolean =
+    licenseExpiredByDate(expiredAt) ||
+        daysRemaining < 0 ||
+        licenseStatusBlocks(status)
+
+/** Sesi tersimpan: keluarkan pengguna jika lisensi tidak lagi valid. */
+fun LicenseInfo.blocksAppUse(): Boolean =
+    licenseExpiredByDate(expiredAt) ||
+        daysRemaining < 0 ||
+        licenseStatusBlocks(status)
+
 data class ChangePinRequest(
     val email: String,
     @SerializedName("old_password") val oldPassword: String,
@@ -95,6 +170,7 @@ data class LicenseValidateRequest(
 
 data class Product(
     val id: String = "",
+    val sku: String = "",
     val barcode: String = "",
     val name: String,
     val category: String = "Umum",
@@ -206,8 +282,14 @@ data class Transaction(
     @SerializedName("total_paid") val totalPaid: Double = 0.0,
     val change: Double = 0.0,
     val notes: String = "",
-    @SerializedName("created_at") val createdAt: String = ""
-)
+    @SerializedName("created_at") val createdAt: String = "",
+    /** From POS history API when item list is not loaded */
+    @SerializedName("items_count") val listItemsCount: Int = 0,
+    /** True when checkout disimpan lokal menunggu sinkron ke server */
+    val isPendingSync: Boolean = false,
+) {
+    fun displayItemCount(): Int = if (items.isNotEmpty()) items.size else listItemsCount
+}
 
 data class TransactionsResponse(
     val data: List<Transaction>,

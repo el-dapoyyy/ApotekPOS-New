@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +23,7 @@ import com.mediakasir.apotekpos.data.model.AlertData
 import com.mediakasir.apotekpos.data.model.DashboardData
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
+import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.theme.*
 import com.mediakasir.apotekpos.utils.formatDate
 import com.mediakasir.apotekpos.utils.formatIDR
@@ -38,11 +38,15 @@ fun DashboardScreen(
     val dashboard by viewModel.dashboard.collectAsState()
     val alerts by viewModel.alerts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val loadError by viewModel.error.collectAsState()
 
     var isRefreshing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(license?.branchId) {
-        license?.branchId?.let { viewModel.load(it) }
+    val branchId = remember(license, user) { effectiveBranchId(license, user) }
+    LaunchedEffect(user?.userId, branchId) {
+        if (user != null) {
+            viewModel.load(branchId)
+        }
     }
 
     // Sync isRefreshing with isLoading state from ViewModel
@@ -56,7 +60,9 @@ fun DashboardScreen(
         isRefreshing = isRefreshing,
         onRefresh = {
             isRefreshing = true
-            license?.branchId?.let { viewModel.load(it) }
+            if (user != null) {
+                viewModel.load(branchId)
+            }
         },
         modifier = Modifier.fillMaxSize()
     ) {
@@ -106,6 +112,22 @@ fun DashboardScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+
+            loadError?.let { err ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Text(
+                        err,
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
 

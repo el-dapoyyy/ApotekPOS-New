@@ -8,10 +8,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
+import com.mediakasir.apotekpos.util.ApiDeviceId
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,6 +28,8 @@ class SessionRepository @Inject constructor(
     private val USER_KEY = stringPreferencesKey("user")
     private val LICENSE_KEY = stringPreferencesKey("license")
     private val DEVICE_ID_KEY = stringPreferencesKey("device_id")
+    /** ISO local date (yyyy-MM-dd) untuk rollover sesi kasir harian */
+    private val BUSINESS_DAY_KEY = stringPreferencesKey("business_calendar_day")
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { it[TOKEN_KEY] }
     val userFlow: Flow<UserInfo?> = context.dataStore.data.map { prefs ->
@@ -43,25 +47,45 @@ class SessionRepository @Inject constructor(
     suspend fun getLicense(): LicenseInfo? = licenseFlow.first()
 
     suspend fun getDeviceId(): String {
-        val stored = deviceIdFlow.first()
-        if (!stored.isNullOrEmpty()) return stored
-
         val androidId = Settings.Secure.getString(
             context.contentResolver,
-            Settings.Secure.ANDROID_ID
-        ) ?: ""
-
-        context.dataStore.edit { prefs ->
-            prefs[DEVICE_ID_KEY] = androidId
+            Settings.Secure.ANDROID_ID,
+        ).orEmpty()
+        val normalized = ApiDeviceId.fromAndroidId(androidId)
+        val stored = deviceIdFlow.first()
+        if (stored != normalized) {
+            context.dataStore.edit { prefs ->
+                prefs[DEVICE_ID_KEY] = normalized
+            }
         }
-
-        return androidId
+        return normalized
     }
 
     suspend fun saveSession(user: UserInfo, token: String) {
         context.dataStore.edit { prefs ->
             prefs[TOKEN_KEY] = token
             prefs[USER_KEY] = gson.toJson(user)
+            prefs[BUSINESS_DAY_KEY] = LocalDate.now().toString()
+        }
+    }
+
+    /**
+     * Jika tanggal kalender berbeda dari hari terakhir login aktif, sesi dihapus (kasir login ulang).
+     */
+    suspend fun applyCalendarDayRolloverIfNeeded() {
+        val today = LocalDate.now().toString()
+        val prefs = context.dataStore.data.first()
+        val stored = prefs[BUSINESS_DAY_KEY]
+        val token = prefs[TOKEN_KEY]
+        if (stored == null) {
+            if (!token.isNullOrEmpty()) {
+                context.dataStore.edit { it[BUSINESS_DAY_KEY] = today }
+            }
+            return
+        }
+        if (stored != today) {
+            clearSession()
+            context.dataStore.edit { it[BUSINESS_DAY_KEY] = today }
         }
     }
 
@@ -81,6 +105,7 @@ class SessionRepository @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs.remove(TOKEN_KEY)
             prefs.remove(USER_KEY)
+            prefs.remove(LICENSE_KEY)
         }
     }
 

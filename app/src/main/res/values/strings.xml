@@ -1,4 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MediKasir</string>
+    <string name="app_name">APO-Apps</string>
+    <string name="wordmark_prefix">APO-</string>
+    <string name="wordmark_suffix">Apps</string>
+    <string name="app_tagline">Modern pharmacy management</string>
+    <string name="premium_edition">Premium Edition</string>
+    <string name="splash_footer">© ApoApps. Crafted for Indonesian pharmacies.</string>
+
+    <string name="nav_home">Home</string>
+    <string name="nav_pos">POS</string>
+    <string name="nav_stock">Stock</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_prescriptions">Resep</string>
+
+    <string name="login_welcome_back">Welcome back</string>
+    <string name="login_subtitle">Sign in to open your pharmacy dashboard</string>
+    <string name="login_email_label">Email address</string>
+    <string name="login_email_placeholder">name@pharmacy.com</string>
+    <string name="login_password_label">Password</string>
+    <string name="login_password_placeholder">Enter your password</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_error_generic">Sign-in failed</string>
+    <string name="login_with_google">Continue with Google</string>
+    <string name="login_or">or</string>
+    <string name="login_google_setup_hint">Add dev.googleWebClientId to local.properties (OAuth Web client ID from Google Cloud).</string>
+    <string name="error_network_unreachable">Cannot reach the server. Check internet, emulator DNS, or set dev.baseUrl in local.properties for a local API.</string>
+    <string name="error_network_debug_base">[Debug] App is calling: %1$s</string>
+    <string name="error_network_timeout">Connection timed out. Try again or check your network.</string>
+    <string name="error_login_google_http">Google sign-in failed (%1$d). The server may not implement POST auth/google yet.</string>
+    <string name="login_license_blocked">Your pharmacy license is expired or inactive. Contact the owner or administrator.</string>
+
+    <string name="settings_reset_app">Reset app data</string>
+    <string name="settings_reset_app_message">Clear all saved sessions on this device. You will need to sign in again.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="action_cancel">Cancel</string>
 </resources>

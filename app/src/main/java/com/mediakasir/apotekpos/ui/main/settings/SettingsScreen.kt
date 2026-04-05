@@ -4,43 +4,37 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediakasir.apotekpos.R
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
-import com.mediakasir.apotekpos.data.network.ApiService
-import com.mediakasir.apotekpos.data.model.ChangePinRequest
-import com.mediakasir.apotekpos.ui.MainViewModel
 import com.mediakasir.apotekpos.ui.theme.*
-import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     license: LicenseInfo?,
     user: UserInfo?,
-    viewModel: MainViewModel,
-    api: ApiService,
     onLogout: () -> Unit,
-    onClearLicense: () -> Unit
+    onResetApp: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    var oldPin by remember { mutableStateOf("") }
-    var newPin by remember { mutableStateOf("") }
-    var confirmPin by remember { mutableStateOf("") }
-    var pinMessage by remember { mutableStateOf<String?>(null) }
-    var pinError by remember { mutableStateOf<String?>(null) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
 
@@ -102,7 +96,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Change Password
+            // Password (API POS tidak menyediakan ganti password — gunakan ApoApps web)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -111,70 +105,13 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Lock, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Ganti Password", fontWeight = FontWeight.Bold)
+                        Text("Akun & password", fontWeight = FontWeight.Bold)
                     }
-
-                    OutlinedTextField(
-                        value = oldPin,
-                        onValueChange = { oldPin = it },
-                        label = { Text("Password Lama") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                    Text(
+                        "Ganti password dilakukan lewat ApoApps web (admin). Aplikasi POS hanya menggunakan endpoint yang ada di dokumentasi API.",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
                     )
-                    OutlinedTextField(
-                        value = newPin,
-                        onValueChange = { newPin = it },
-                        label = { Text("Password Baru") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = confirmPin,
-                        onValueChange = { confirmPin = it },
-                        label = { Text("Konfirmasi Password Baru") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        isError = pinError != null,
-                        supportingText = pinError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } }
-                    )
-
-                    if (pinMessage != null) {
-                        Text(pinMessage!!, color = Success, fontSize = 13.sp)
-                    }
-
-                    Button(
-                        onClick = {
-                            pinError = null
-                            pinMessage = null
-                            if (newPin != confirmPin) {
-                                pinError = "Password baru tidak cocok"
-                                return@Button
-                            }
-                            if (newPin.length < 6) {
-                                pinError = "Password minimal 6 karakter"
-                                return@Button
-                            }
-                            scope.launch {
-                                try {
-                                    api.changePin(ChangePinRequest(user?.email ?: "", oldPin, newPin))
-                                    pinMessage = "Password berhasil diubah"
-                                    oldPin = ""; newPin = ""; confirmPin = ""
-                                } catch (e: Exception) {
-                                    pinError = e.message ?: "Gagal mengubah password"
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = oldPin.isNotBlank() && newPin.isNotBlank() && confirmPin.isNotBlank()
-                    ) {
-                        Text("Ganti Password")
-                    }
                 }
             }
 
@@ -196,7 +133,7 @@ fun SettingsScreen(
             ) {
                 Icon(Icons.Filled.DeleteForever, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Hapus Data Lisensi")
+                Text(stringResource(R.string.settings_reset_app))
             }
         }
     }
@@ -209,22 +146,30 @@ fun SettingsScreen(
             confirmButton = {
                 Button(onClick = { showLogoutDialog = false; onLogout() }) { Text("Logout") }
             },
-            dismissButton = { TextButton(onClick = { showLogoutDialog = false }) { Text("Batal") } }
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Hapus Data Lisensi") },
-            text = { Text("Ini akan menghapus semua data sesi dan kembali ke layar aktivasi lisensi.") },
+            title = { Text(stringResource(R.string.settings_reset_app)) },
+            text = { Text(stringResource(R.string.settings_reset_app_message)) },
             confirmButton = {
                 Button(
-                    onClick = { showClearDialog = false; onClearLicense() },
+                    onClick = { showClearDialog = false; onResetApp() },
                     colors = ButtonDefaults.buttonColors(containerColor = Error)
-                ) { Text("Hapus") }
+                ) { Text(stringResource(R.string.settings_reset_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("Batal") } }
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 }

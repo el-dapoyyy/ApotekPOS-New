@@ -14,47 +14,26 @@ Aplikasi Android (Kotlin + Jetpack Compose) yang merupakan migrasi dari reposito
 | State | ViewModel + StateFlow |
 | Language | Kotlin |
 
-## Fitur yang Dimigrasi
+## Fitur
 
-✅ Aktivasi Lisensi  
-✅ Login dengan PIN  
-✅ Dashboard (revenue, transaksi, stok rendah, peringatan kadaluarsa)  
-✅ Kasir / POS (tambah ke keranjang, diskon, multi-metode pembayaran, struk)  
-✅ Manajemen Stok (produk + batch FEFO)  
-✅ Riwayat Transaksi  
-✅ Pengaturan & Ganti PIN  
+✅ Login (Sanctum) + sesi cabang  
+✅ Dashboard (ringkasan alert stok & kadaluarsa)  
+✅ Kasir / POS (sinkron transaksi ke server)  
+✅ Stok (baca dari API POS; kelola produk/batch lewat web admin)  
+✅ Riwayat transaksi  
+✅ Pengaturan (logout, reset data lokal)  
 
 ## Cara Membuka di Android Studio
 
 1. **Clone / extract** proyek ini
 2. Buka **Android Studio** → **Open** → pilih folder `ApotekPOS`
 3. Tunggu Gradle sync selesai
-4. Edit `BASE_URL` di `app/build.gradle.kts`:
-   ```kotlin
-   buildConfigField("String", "BASE_URL", "\"http://YOUR_SERVER_IP:8001/api/\"")
-   ```
-   - Untuk emulator: `http://10.0.2.2:8001/api/`
-   - Untuk device fisik: gunakan IP lokal server, misal `http://192.168.1.100:8001/api/`
+4. Edit `BASE_URL` (dan jika perlu `DEV_API_HOST_HEADER`) di `app/build.gradle.kts` agar mengarah ke **Laravel ApoApps** Anda, path API biasanya berakhiran `/api/` (lihat **`API_DOKUMENTASI_ANDROID.md`** di root repo).
+   - Emulator ke Laragon / vhost lokal: sering memakai `http://10.0.2.2/...` plus header `Host` sesuai domain virtual (mis. `apoapps.test`).
 
-## Menjalankan Backend
+## Backend
 
-Backend Python FastAPI dari repo asli tetap digunakan. Jalankan dengan:
-
-```bash
-cd backend
-pip install -r requirements.txt
-python server.py
-```
-
-Kemudian seed data demo:
-```
-POST http://localhost:8001/api/seed
-```
-
-Kredensial demo:
-- **Lisensi**: `APOTEK-DEMO-2024-1234`
-- **Admin**: username `admin`, PIN `1234`
-- **Kasir**: username `kasir1`, PIN `5678`
+Aplikasi memakai **API Laravel (Sanctum)** sesuai dokumentasi di **`API_DOKUMENTASI_ANDROID.md`**, bukan mock server atau FastAPI demo.
 
 ## Struktur Proyek
 
@@ -66,7 +45,7 @@ app/src/main/java/com/mediakasir/apotekpos/
 │   └── repository/   # SessionRepository (DataStore)
 ├── di/               # Hilt module (AppModule.kt)
 ├── ui/
-│   ├── auth/         # LicenseScreen, LoginScreen
+│   ├── auth/         # SplashScreen, LoginScreen
 │   ├── main/
 │   │   ├── dashboard/ # Dashboard
 │   │   ├── pos/       # Kasir / POS
