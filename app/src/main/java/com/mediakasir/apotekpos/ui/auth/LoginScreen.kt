@@ -110,7 +110,7 @@ fun LoginScreen(
     val activity = LocalContext.current as ComponentActivity
     val googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         val useWideLayout = maxWidth >= 600.dp
@@ -137,26 +137,89 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                Box(
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoginBrandingCarousel(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 24.dp, vertical = 32.dp),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .padding(horizontal = 28.dp, vertical = 24.dp)
+                                .fillMaxWidth()
+                                .widthIn(max = 400.dp),
+                            shape = RoundedCornerShape(28.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.97f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                        ) {
+                            LoginFormBody(
+                                email = email,
+                                onEmailChange = { email = it; viewModel.clearError() },
+                                password = password,
+                                onPasswordChange = { password = it; viewModel.clearError() },
+                                passwordVisible = passwordVisible,
+                                onPasswordVisibleToggle = { passwordVisible = !passwordVisible },
+                                error = error,
+                                isLoading = isLoading,
+                                focusManager = focusManager,
+                                googleWebClientId = googleWebClientId,
+                                onGoogleClick = {
+                                    viewModel.clearError()
+                                    scope.launch {
+                                        val res = requestGoogleIdToken(activity, googleWebClientId)
+                                        res.fold(
+                                            onSuccess = { token ->
+                                                if (token != null) {
+                                                    viewModel.loginWithGoogleIdToken(token, onSuccess)
+                                                }
+                                            },
+                                            onFailure = { e ->
+                                                viewModel.reportAuthError(
+                                                    e.message ?: activity.getString(R.string.login_error_generic),
+                                                )
+                                            },
+                                        )
+                                    }
+                                },
+                                onSubmit = {
+                                    if (email.isNotBlank() && password.isNotBlank()) {
+                                        viewModel.login(email.trim(), password, onSuccess)
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            } else {
+                /* ── Phone / portrait: stacked vertical ── */
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                        .fillMaxSize()
+                        .verticalScroll(scroll)
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     LoginBrandingCarousel(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 24.dp, vertical = 32.dp),
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .padding(bottom = 16.dp),
                     )
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.Center,
-                ) {
                     Card(
                         modifier = Modifier
-                            .padding(horizontal = 28.dp, vertical = 24.dp)
                             .fillMaxWidth()
                             .widthIn(max = 400.dp),
                         shape = RoundedCornerShape(28.dp),
@@ -200,68 +263,7 @@ fun LoginScreen(
                         )
                     }
                 }
-                }
-            } else {
-                Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scroll)
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                LoginBrandingCarousel(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .padding(bottom = 16.dp),
-                )
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 400.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.97f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                ) {
-                    LoginFormBody(
-                        email = email,
-                        onEmailChange = { email = it; viewModel.clearError() },
-                        password = password,
-                        onPasswordChange = { password = it; viewModel.clearError() },
-                        passwordVisible = passwordVisible,
-                        onPasswordVisibleToggle = { passwordVisible = !passwordVisible },
-                        error = error,
-                        isLoading = isLoading,
-                        focusManager = focusManager,
-                        googleWebClientId = googleWebClientId,
-                        onGoogleClick = {
-                            viewModel.clearError()
-                            scope.launch {
-                                val res = requestGoogleIdToken(activity, googleWebClientId)
-                                res.fold(
-                                    onSuccess = { token ->
-                                        if (token != null) {
-                                            viewModel.loginWithGoogleIdToken(token, onSuccess)
-                                        }
-                                    },
-                                    onFailure = { e ->
-                                        viewModel.reportAuthError(
-                                            e.message ?: activity.getString(R.string.login_error_generic),
-                                        )
-                                    },
-                                )
-                            }
-                        },
-                        onSubmit = {
-                            if (email.isNotBlank() && password.isNotBlank()) {
-                                viewModel.login(email.trim(), password, onSuccess)
-                            }
-                        },
-                    )
-                }
             }
-        }
         }
     }
 }
@@ -357,8 +359,8 @@ private fun LoginFormBody(
     onSubmit: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = stringResource(R.string.login_welcome_back),
@@ -395,6 +397,8 @@ private fun LoginFormBody(
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
                 focusedBorderColor = ApoPrimary,
                 focusedLeadingIconColor = ApoPrimary,
                 unfocusedContainerColor = InputFillStart,
@@ -448,6 +452,8 @@ private fun LoginFormBody(
             },
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.Black,
+                unfocusedTextColor = Color.Black,
                 focusedBorderColor = ApoPrimary,
                 focusedLeadingIconColor = ApoPrimary,
                 unfocusedContainerColor = InputFillEnd,

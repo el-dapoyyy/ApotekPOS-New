@@ -113,6 +113,9 @@ class POSViewModel @Inject constructor(
     private val _posKasirCatalogBlocked = MutableStateFlow(false)
     val posKasirCatalogBlocked: StateFlow<Boolean> = _posKasirCatalogBlocked.asStateFlow()
 
+    private val _alertCount = MutableStateFlow(0)
+    val alertCount: StateFlow<Int> = _alertCount.asStateFlow()
+
     /** Teks dialog akses; null = tidak tampil. */
     private val _posKasirAccessDialogText = MutableStateFlow<String?>(null)
     val posKasirAccessDialogText: StateFlow<String?> = _posKasirAccessDialogText.asStateFlow()
@@ -131,6 +134,21 @@ class POSViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             pendingSyncDao.observeCount().collect { _pendingSyncCount.value = it }
+        }
+    }
+
+    fun checkAlerts() {
+        viewModelScope.launch {
+            try {
+                if (!networkStatus.isConnected()) return@launch
+                val summary = api.getAlertsSummary()
+                if (summary.success == true) {
+                    val exp = summary.data?.expiry
+                    _alertCount.value = (exp?.critical ?: 0) + (exp?.warning ?: 0) + (exp?.notice ?: 0)
+                }
+            } catch (e: Exception) {
+                // Background check, fail silently
+            }
         }
     }
 
@@ -251,6 +269,7 @@ class POSViewModel @Inject constructor(
                     return@launch
                 }
                 _products.value = fetchAndCacheProducts(branchId, search)
+                checkAlerts() // Update alert badge
             } catch (e: Exception) {
                 val msg = formatApiThrowable(e, gson)
                 _productsLoadError.value = msg

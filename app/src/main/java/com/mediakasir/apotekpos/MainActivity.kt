@@ -4,46 +4,48 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Text
-import androidx.compose.animation.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -139,138 +141,169 @@ fun ApotekNavHost() {
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val useRail = false
-        Row(Modifier.fillMaxSize()) {
-            if (useRail && showMainNav) {
-                NavigationRail {
-                    navItems.forEach { item ->
-                        val label = stringResource(item.labelRes)
-                        NavigationRailItem(
-                            icon = { Icon(item.icon, contentDescription = label) },
-                            label = { Text(label) },
-                            selected = currentRoute == item.route,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                        )
-                    }
-                }
-            }
-            Scaffold(
-                modifier = Modifier.weight(1f),
-                bottomBar = {
-                    if (!useRail && showMainNav) {
-                        NavigationBar(
-                            modifier = Modifier
-                                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                                .clip(RoundedCornerShape(32.dp)),
-                            containerColor = Color.White,
-                            tonalElevation = 8.dp
-                        ) {
-                            navItems.forEach { item ->
-                                val label = stringResource(item.labelRes)
-                                NavigationBarItem(
-                                    icon = { Icon(item.icon, contentDescription = label) },
-                                    label = { Text(label, maxLines = 1) },
-                                    selected = currentRoute == item.route,
-                                    colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = com.mediakasir.apotekpos.ui.theme.Primary,
-                                        selectedTextColor = com.mediakasir.apotekpos.ui.theme.Primary,
-                                        indicatorColor = com.mediakasir.apotekpos.ui.theme.PrimaryLight,
-                                        unselectedIconColor = com.mediakasir.apotekpos.ui.theme.TextSecondary,
-                                        unselectedTextColor = com.mediakasir.apotekpos.ui.theme.TextSecondary
-                                    ),
-                                    onClick = {
-                                        navController.navigate(item.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
-                                )
+    Scaffold(
+        bottomBar = {
+            if (showMainNav) {
+                ApotekBottomBar(
+                    items = navItems,
+                    currentRoute = currentRoute,
+                    onItemClick = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
                             }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    }
-                }
-            ) { innerPadding ->
-                NavHost(
-                    navController = navController,
-                    startDestination = Screen.Splash.route,
-                    modifier = Modifier.padding(innerPadding),
+                    },
+                )
+            }
+        },
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Splash.route,
+            modifier = Modifier.padding(innerPadding),
+        ) {
+            composable(Screen.Splash.route) {
+                SplashScreen(
+                    viewModel = viewModel,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    },
+                )
+            }
+
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    viewModel = viewModel,
+                    onSuccess = {
+                        navController.navigate(Screen.POS.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                )
+            }
+
+            composable(Screen.Dashboard.route) {
+                DashboardScreen(license = license, user = user)
+            }
+
+            composable(Screen.POS.route) {
+                POSScreen(license = license, user = user)
+            }
+
+            composable(Screen.Stok.route) {
+                StokScreen(license = license, user = user)
+            }
+
+            composable(Screen.History.route) {
+                HistoryScreen(license = license, user = user)
+            }
+
+            composable(Screen.Laporan.route) {
+                LaporanScreen(license = license, user = user)
+            }
+
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    license = license,
+                    user = user,
+                    onLogout = {
+                        viewModel.logout()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onResetApp = {
+                        viewModel.resetAppData()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                )
+            }
+
+            composable(Screen.Prescriptions.route) {
+                PrescriptionsPlaceholderScreen()
+            }
+        }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────── */
+/*  Custom Bottom Navigation Bar (matches reference design)              */
+/* ─────────────────────────────────────────────────────────────────────── */
+
+@Composable
+private fun ApotekBottomBar(
+    items: List<NavItem>,
+    currentRoute: String?,
+    onItemClick: (String) -> Unit,
+) {
+    val accent = com.mediakasir.apotekpos.ui.theme.Primary        // green
+    val inactiveIcon = Color(0xFF6B7280)   // gray-500
+    val inactiveText = Color(0xFF9CA3AF)   // gray-400
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .navigationBarsPadding(),
+    ) {
+        // thin top divider
+        HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFE5E7EB))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { item ->
+                val selected = currentRoute == item.route
+                val label = stringResource(item.labelRes)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onItemClick(item.route) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    composable(Screen.Splash.route) {
-                        SplashScreen(
-                            viewModel = viewModel,
-                            onNavigate = { route ->
-                                navController.navigate(route) {
-                                    popUpTo(Screen.Splash.route) { inclusive = true }
-                                }
-                            },
+                    // Icon with pill-shaped highlight when selected
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) accent else Color.Transparent)
+                            .padding(horizontal = 18.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = label,
+                            modifier = Modifier.size(26.dp),
+                            tint = if (selected) Color.White else inactiveIcon,
                         )
                     }
 
-                    composable(Screen.Login.route) {
-                        LoginScreen(
-                            viewModel = viewModel,
-                            onSuccess = {
-                                navController.navigate(Screen.POS.route) {
-                                    popUpTo(Screen.Login.route) { inclusive = true }
-                                }
-                            },
-                        )
-                    }
+                    Spacer(Modifier.height(3.dp))
 
-                    composable(Screen.Dashboard.route) {
-                        DashboardScreen(license = license, user = user)
-                    }
-
-                    composable(Screen.POS.route) {
-                        POSScreen(license = license, user = user)
-                    }
-
-                    composable(Screen.Stok.route) {
-                        StokScreen(license = license, user = user)
-                    }
-
-                    composable(Screen.History.route) {
-                        HistoryScreen(license = license, user = user)
-                    }
-
-                    composable(Screen.Laporan.route) {
-                        LaporanScreen(license = license, user = user)
-                    }
-
-                    composable(Screen.Settings.route) {
-                        SettingsScreen(
-                            license = license,
-                            user = user,
-                            onLogout = {
-                                viewModel.logout()
-                                navController.navigate(Screen.Login.route) {
-                                    popUpTo(0) { inclusive = true }
-                                }
-                            },
-                            onResetApp = {
-                                viewModel.resetAppData()
-                                navController.navigate(Screen.Login.route) {
-                                    popUpTo(0) { inclusive = true }
-                                }
-                            },
-                        )
-                    }
-
-                    composable(Screen.Prescriptions.route) {
-                        PrescriptionsPlaceholderScreen()
-                    }
+                    Text(
+                        text = label,
+                        fontSize = 12.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selected) Color(0xFF1F2937) else inactiveText,
+                        maxLines = 1,
+                    )
                 }
             }
         }
