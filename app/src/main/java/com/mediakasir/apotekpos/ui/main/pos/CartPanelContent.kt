@@ -1,6 +1,7 @@
 package com.mediakasir.apotekpos.ui.main.pos
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -83,268 +85,238 @@ fun CartPanelContent(
     val change = viewModel.getChange()
     val isProcessing by viewModel.isProcessing.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().background(Color.White)) {
+        // TOP HEADER
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "TRANSAKSI ${viewModel.getCartCount()} ITEM",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Column {
+                Text(
+                    "Transaksi",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TextPrimary
+                )
+                Text(
+                    "${viewModel.getCartCount()} Item",
+                    fontSize = 14.sp,
+                    color = TextSecondary
+                )
+            }
             if (showTopClose && onDismiss != null) {
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Filled.Close, contentDescription = "Tutup")
                 }
             }
         }
-        HorizontalDivider()
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        
+        // MIDDLE CONTENT (Scrollable)
+        Box(modifier = Modifier.weight(1f)) {
             if (cart.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(40.dp),
-                    contentAlignment = Alignment.Center,
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted)
-                        Text("Keranjang kosong", color = TextMuted, modifier = Modifier.padding(top = 8.dp))
-                    }
+                    Icon(
+                        Icons.Outlined.ShoppingCart,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = TextMuted
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("Keranjang kosong", color = TextSecondary, fontSize = 14.sp)
                 }
             } else {
-                Surface(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = false) { },
-                    shape = RoundedCornerShape(10.dp),
-                    color = Subtle,
-                    border = BorderStroke(1.dp, Border),
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text(
-                        "PILIH PELANGGAN",
-                        modifier = Modifier.padding(14.dp),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextMuted,
-                    )
-                }
-                cart.forEach { item ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(item.product.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text(
-                                "${formatIDR(item.product.sellPrice)} × ${item.qty} = ${formatIDR(item.product.sellPrice * item.qty)}",
-                                fontSize = 12.sp,
-                                color = TextSecondary,
-                            )
-                        }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    cart.forEach { item ->
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            IconButton(
-                                onClick = { viewModel.updateQty(item.product.id, -1) },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(Icons.Filled.Remove, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
-                            }
-                            Text(
-                                item.qty.toString(),
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.widthIn(min = 24.dp),
-                                textAlign = TextAlign.Center,
-                            )
-                            IconButton(
-                                onClick = { viewModel.updateQty(item.product.id, 1) },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(Icons.Filled.Add, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
-                            }
-                            IconButton(
-                                onClick = { viewModel.removeFromCart(item.product.id) },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                    HorizontalDivider()
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Subtotal", color = TextSecondary)
-                    Text(formatIDR(subtotal), fontWeight = FontWeight.SemiBold)
-                }
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("DISKON GLOBAL", color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = discount,
-                        onValueChange = { viewModel.setDiscount(it) },
-                        modifier = Modifier.width(120.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.End),
-                    )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("TUSLA", color = TextSecondary, fontSize = 12.sp)
-                    Text("—", color = TextMuted, fontSize = 13.sp)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("EMBALSE", color = TextSecondary, fontSize = 12.sp)
-                    Text("—", color = TextMuted, fontSize = 13.sp)
-                }
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = PosWebPrimary.copy(alpha = 0.12f),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text("TOTAL", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
-                        Text(
-                            formatIDR(total),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 20.sp,
-                            color = PosWebPrimaryDark,
-                        )
-                    }
-                }
-
-                Text("Isi cepat (baris pertama)", fontSize = 12.sp, color = TextSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(50_000, 100_000, 200_000).forEach { v ->
-                        TextButton(onClick = {
-                            val first = payments.firstOrNull() ?: return@TextButton
-                            viewModel.updatePayment(first.id, amount = v.toString())
-                        }) {
-                            Text(formatIDR(v.toDouble()), fontSize = 12.sp)
-                        }
-                    }
-                    TextButton(onClick = {
-                        val first = payments.firstOrNull() ?: return@TextButton
-                        viewModel.updatePayment(first.id, amount = kotlin.math.ceil(total).toInt().toString())
-                    }) {
-                        Text("Pas", fontSize = 12.sp)
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("SISTEM PEMBAYARAN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    TextButton(onClick = { viewModel.addPayment() }) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text("+ SPLIT", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-
-                payments.forEach { payment ->
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Subtle)) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                PAYMENT_METHODS.forEach { method ->
-                                    Surface(
-                                        modifier = Modifier.clickable { viewModel.updatePayment(payment.id, method = method) },
-                                        shape = RoundedCornerShape(20.dp),
-                                        color = if (payment.method == method) PosWebPrimary else SurfaceColor,
-                                        border = if (payment.method != method) BorderStroke(1.dp, Border) else null,
-                                    ) {
-                                        Text(
-                                            method,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                            fontSize = 12.sp,
-                                            color = if (payment.method == method) Color.White else TextSecondary,
-                                            fontWeight = FontWeight.Medium,
-                                        )
-                                    }
-                                }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.product.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(
+                                    "${formatIDR(item.product.sellPrice)} × ${item.qty} = ${formatIDR(item.product.sellPrice * item.qty)}",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary,
+                                )
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                OutlinedTextField(
-                                    value = payment.amount,
-                                    onValueChange = { viewModel.updatePayment(payment.id, amount = it) },
-                                    modifier = Modifier.weight(1f),
-                                    label = { Text("Jumlah") },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                IconButton(
+                                    onClick = { viewModel.updateQty(item.product.id, -1) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(Icons.Filled.Remove, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    item.qty.toString(),
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.widthIn(min = 24.dp),
+                                    textAlign = TextAlign.Center,
                                 )
-                                if (payments.size > 1) {
-                                    IconButton(onClick = { viewModel.removePayment(payment.id) }) {
-                                        Icon(Icons.Filled.Close, contentDescription = null, tint = Error)
+                                IconButton(
+                                    onClick = { viewModel.updateQty(item.product.id, 1) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(
+                                    onClick = { viewModel.removeFromCart(item.product.id) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = Subtle)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    // DISKON GLOBAL & PEMBAYARAN HANYA TAMPIL JIKA ADA BARANG
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("DISKON", color = TextSecondary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = discount,
+                            onValueChange = { viewModel.setDiscount(it) },
+                            modifier = Modifier.width(120.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = androidx.compose.ui.text.TextStyle(textAlign = TextAlign.End),
+                        )
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("PEMBAYARAN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        TextButton(onClick = { viewModel.addPayment() }) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text("+ SPLIT", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    payments.forEach { payment ->
+                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Subtle)) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    PAYMENT_METHODS.forEach { method ->
+                                        Surface(
+                                            modifier = Modifier.clickable { viewModel.updatePayment(payment.id, method = method) },
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = if (payment.method == method) PosWebPrimary else SurfaceColor,
+                                            border = if (payment.method != method) BorderStroke(1.dp, Border) else null,
+                                        ) {
+                                            Text(
+                                                method,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                fontSize = 12.sp,
+                                                color = if (payment.method == method) Color.White else TextSecondary,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                        }
+                                    }
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    OutlinedTextField(
+                                        value = payment.amount,
+                                        onValueChange = { viewModel.updatePayment(payment.id, amount = it) },
+                                        modifier = Modifier.weight(1f),
+                                        label = { Text("Jumlah") },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    )
+                                    if (payments.size > 1) {
+                                        IconButton(onClick = { viewModel.removePayment(payment.id) }) {
+                                            Icon(Icons.Filled.Close, contentDescription = null, tint = Error)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Total Dibayar", color = TextSecondary)
-                    Text(
-                        formatIDR(totalPaid),
-                        color = if (totalPaid >= total) Success else Error,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Kembalian", color = TextSecondary)
-                    Text(
-                        formatIDR(maxOf(0.0, change)),
-                        color = if (change >= 0) Success else Error,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total Dibayarkan", color = TextSecondary)
+                        Text(
+                            formatIDR(totalPaid),
+                            color = if (totalPaid >= total) Success else Error,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Kembalian", color = TextSecondary)
+                        Text(
+                            formatIDR(maxOf(0.0, change)),
+                            color = if (change >= 0) Success else Error,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
 
-        if (cart.isNotEmpty()) {
-            Box(modifier = Modifier.padding(16.dp)) {
+        // BOTTOM SUMMARY & CHECKOUT BUTTON (ALWAYS VISIBLE)
+        Surface(
+            color = Color.White,
+            shadowElevation = 0.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                HorizontalDivider(color = Subtle)
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Subtotal", color = TextPrimary, fontSize = 15.sp)
+                    Text(if (cart.isEmpty()) "—" else formatIDR(subtotal), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(if (cart.isEmpty()) "—" else formatIDR(total), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                }
+                Spacer(Modifier.height(20.dp))
+
                 Button(
                     onClick = onCheckout,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    enabled = !isProcessing && totalPaid >= total,
+                        .height(54.dp),
+                    enabled = !isProcessing && cart.isNotEmpty() && totalPaid >= total,
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PosWebPrimary,
-                        disabledContainerColor = TextMuted,
+                        containerColor = PosWebPrimary.copy(alpha = if (cart.isEmpty()) 0.5f else 1f),
+                        disabledContainerColor = PosWebPrimary.copy(alpha = 0.4f),
+                        disabledContentColor = Color.White
                     ),
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Filled.CheckCircle, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("SELESAIKAN PESANAN", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Checkout", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

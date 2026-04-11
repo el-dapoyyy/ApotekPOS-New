@@ -1,26 +1,21 @@
 package com.mediakasir.apotekpos.ui.main.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediakasir.apotekpos.R
@@ -37,103 +32,167 @@ fun SettingsScreen(
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    
+    var selectedTab by remember { mutableStateOf("Informasi Apotek") }
+    val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan")
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Primary)
-                .padding(16.dp)
-        ) {
-            Text("Pengaturan", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+    Column(modifier = Modifier.fillMaxSize().background(Background)) {
+        // Top App Bar
+        Surface(shadowElevation = 2.dp) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .background(Color.White)
+            ) {
+                // Hamburger menu on left
+                Icon(
+                    Icons.Filled.Menu, 
+                    contentDescription = null, 
+                    tint = TextSecondary,
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 16.dp)
+                        .size(24.dp)
+                )
+                
+                // Centered text
+                Text(
+                    "PENGATURAN", 
+                    color = Primary, 
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
         }
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Info Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+        
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Left Sidebar
+            Column(
+                modifier = Modifier
+                    .weight(0.35f)
+                    .fillMaxHeight()
+                    .background(Color.White)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.LocalPharmacy, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Informasi Apotek", fontWeight = FontWeight.Bold)
+                // Profile Section
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp, horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(72.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    InfoRow("Apotek", license?.pharmacyName ?: "-")
-                    InfoRow("Cabang", license?.branchName ?: "-")
-                    InfoRow("Alamat", license?.address ?: "-")
-                    InfoRow("Telepon", license?.phone ?: "-")
+                    Spacer(Modifier.height(16.dp))
+                    Text(user?.email ?: "email@pengguna.com", fontSize = 14.sp, color = TextPrimary)
+                    Text("Role: ${user?.role?.uppercase()}", fontSize = 11.sp, color = TextSecondary)
+                }
+                
+                // Menu Items
+                tabs.forEach { tab ->
+                    val isSelected = selectedTab == tab
+                    val bgColor = if (isSelected) Primary else Color.White
+                    val contentColor = if (isSelected) Color.White else TextPrimary
+                    val iconColor = if (isSelected) Color.White else Primary
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(bgColor)
+                            .clickable { selectedTab = tab }
+                            .padding(horizontal = 24.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val icon = when(tab) {
+                            "Informasi Apotek" -> Icons.Filled.Home
+                            "Informasi Pengguna" -> Icons.Filled.Group
+                            else -> Icons.Filled.Lock
+                        }
+                        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(16.dp))
+                        Text(tab, color = contentColor, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        
+                        if (!isSelected) {
+                            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 
-            // User Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+            // Right Content Area
+            Column(
+                modifier = Modifier
+                    .weight(0.65f)
+                    .fillMaxHeight()
+                    .background(Background)
+                    .padding(horizontal = 40.dp, vertical = 32.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Person, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Informasi Pengguna", fontWeight = FontWeight.Bold)
+                Text(selectedTab, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(24.dp))
+                
+                Text(
+                    when(selectedTab) {
+                        "Informasi Apotek" -> "Data Apotek"
+                        "Informasi Pengguna" -> "Detail Akun"
+                        else -> "Security Options"
+                    }, 
+                    fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
+                )
+                Text("Terakhir diperbarui hari ini", fontSize = 13.sp, color = TextSecondary)
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider(color = Border)
+                Spacer(Modifier.height(16.dp))
+                
+                Text("Options", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                Spacer(Modifier.height(12.dp))
+                
+                when(selectedTab) {
+                    "Informasi Apotek" -> {
+                        DetailRow("Nama Apotek", license?.pharmacyName ?: "-")
+                        DetailRow("Cabang", license?.branchName ?: "-")
+                        DetailRow("Alamat Lengkap", license?.address ?: "-")
+                        DetailRow("Nomor Telepon", license?.phone ?: "-")
                     }
-                    Spacer(Modifier.height(12.dp))
-                    InfoRow("Email", user?.email ?: "-")
-                    InfoRow("Nama", user?.name ?: "-")
-                    InfoRow("Role", user?.role?.uppercase() ?: "-")
-                }
-            }
-
-            // Password (API POS tidak menyediakan ganti password — gunakan ApoApps web)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Lock, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Akun & password", fontWeight = FontWeight.Bold)
+                    "Informasi Pengguna" -> {
+                        DetailRow("Alamat Email", user?.email ?: "-")
+                        DetailRow("Nama Pengguna", user?.name ?: "-")
+                        DetailRow("Role Sistem", user?.role?.uppercase() ?: "-")
                     }
-                    Text(
-                        "Ganti password dilakukan lewat ApoApps web (admin). Aplikasi POS hanya menggunakan endpoint yang ada di dokumentasi API.",
-                        fontSize = 13.sp,
-                        color = TextSecondary,
-                    )
+                    "Akun & Keamanan" -> {
+                        DetailRow("Ganti Password", "Ganti password dilakukan lewat ApoApps web (admin).")
+                        DetailRow("Keamanan", "Aplikasi POS hanya sinkron dengan API.")
+                    }
                 }
-            }
-
-            // Actions
-            Button(
-                onClick = { showLogoutDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Warning)
-            ) {
-                Icon(Icons.Filled.Logout, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Logout")
-            }
-
-            OutlinedButton(
-                onClick = { showClearDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Error)
-            ) {
-                Icon(Icons.Filled.DeleteForever, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.settings_reset_app))
+                
+                Spacer(Modifier.height(32.dp))
+                
+                // Solid Green Buttons (Mimicking "Manual Sync" and "Data Management" visually)
+                Button(
+                    onClick = { showLogoutDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                }
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Button(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(stringResource(R.string.settings_reset_app), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                }
+                
+                Spacer(Modifier.height(40.dp))
             }
         }
     }
@@ -175,13 +234,18 @@ fun SettingsScreen(
 }
 
 @Composable
-fun InfoRow(label: String, value: String) {
+fun DetailRow(title: String, subtitle: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$label:", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(80.dp))
-        Text(value, fontSize = 13.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, fontSize = 13.sp, color = TextSecondary)
+        }
     }
 }

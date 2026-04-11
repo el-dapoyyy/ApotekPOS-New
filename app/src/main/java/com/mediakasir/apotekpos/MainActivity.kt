@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.LocalPharmacy
@@ -18,15 +19,26 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Text
+import androidx.compose.animation.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -47,6 +59,7 @@ import com.mediakasir.apotekpos.ui.auth.LoginScreen
 import com.mediakasir.apotekpos.ui.auth.SplashScreen
 import com.mediakasir.apotekpos.ui.main.dashboard.DashboardScreen
 import com.mediakasir.apotekpos.ui.main.history.HistoryScreen
+import com.mediakasir.apotekpos.ui.main.laporan.LaporanScreen
 import com.mediakasir.apotekpos.ui.main.pos.POSScreen
 import com.mediakasir.apotekpos.ui.main.prescriptions.PrescriptionsPlaceholderScreen
 import com.mediakasir.apotekpos.ui.main.settings.SettingsScreen
@@ -86,13 +99,12 @@ fun ApotekNavHost() {
         val all = listOf(
             NavItem(R.string.nav_pos, Icons.Filled.ShoppingCart, Screen.POS.route),
             NavItem(R.string.nav_stock, Icons.Filled.Inventory, Screen.Stok.route),
+            NavItem(R.string.nav_laporan, Icons.Filled.Analytics, Screen.Laporan.route),
             NavItem(R.string.nav_history, Icons.Filled.ReceiptLong, Screen.History.route),
-            NavItem(R.string.nav_prescriptions, Icons.Filled.LocalPharmacy, Screen.Prescriptions.route),
-            NavItem(R.string.nav_home, Icons.Filled.Home, Screen.Dashboard.route),
             NavItem(R.string.nav_settings, Icons.Filled.Settings, Screen.Settings.route),
         )
         if (user?.role?.trim()?.equals("kasir", ignoreCase = true) == true) {
-            val allow = setOf(Screen.POS.route, Screen.Stok.route, Screen.History.route, Screen.Settings.route)
+            val allow = setOf(Screen.POS.route, Screen.Stok.route, Screen.Laporan.route, Screen.History.route, Screen.Settings.route)
             all.filter { it.route in allow }
         } else {
             all
@@ -102,6 +114,7 @@ fun ApotekNavHost() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showMainNav = currentRoute in navItems.map { it.route }
+
 
     DisposableEffect(Unit) {
         val owner = ProcessLifecycleOwner.get().lifecycle
@@ -127,7 +140,7 @@ fun ApotekNavHost() {
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val useRail = maxWidth >= 600.dp
+        val useRail = false
         Row(Modifier.fillMaxSize()) {
             if (useRail && showMainNav) {
                 NavigationRail {
@@ -154,13 +167,26 @@ fun ApotekNavHost() {
                 modifier = Modifier.weight(1f),
                 bottomBar = {
                     if (!useRail && showMainNav) {
-                        NavigationBar {
+                        NavigationBar(
+                            modifier = Modifier
+                                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                                .clip(RoundedCornerShape(32.dp)),
+                            containerColor = Color.White,
+                            tonalElevation = 8.dp
+                        ) {
                             navItems.forEach { item ->
                                 val label = stringResource(item.labelRes)
                                 NavigationBarItem(
                                     icon = { Icon(item.icon, contentDescription = label) },
-                                    label = { Text(label) },
+                                    label = { Text(label, maxLines = 1) },
                                     selected = currentRoute == item.route,
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = com.mediakasir.apotekpos.ui.theme.Primary,
+                                        selectedTextColor = com.mediakasir.apotekpos.ui.theme.Primary,
+                                        indicatorColor = com.mediakasir.apotekpos.ui.theme.PrimaryLight,
+                                        unselectedIconColor = com.mediakasir.apotekpos.ui.theme.TextSecondary,
+                                        unselectedTextColor = com.mediakasir.apotekpos.ui.theme.TextSecondary
+                                    ),
                                     onClick = {
                                         navController.navigate(item.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
@@ -174,7 +200,7 @@ fun ApotekNavHost() {
                             }
                         }
                     }
-                },
+                }
             ) { innerPadding ->
                 NavHost(
                     navController = navController,
@@ -217,6 +243,10 @@ fun ApotekNavHost() {
 
                     composable(Screen.History.route) {
                         HistoryScreen(license = license, user = user)
+                    }
+
+                    composable(Screen.Laporan.route) {
+                        LaporanScreen(license = license, user = user)
                     }
 
                     composable(Screen.Settings.route) {

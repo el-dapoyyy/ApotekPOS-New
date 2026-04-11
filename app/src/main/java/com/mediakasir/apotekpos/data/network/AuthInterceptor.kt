@@ -32,6 +32,14 @@ class AuthInterceptor @Inject constructor(
         }
 
         val request = builder.build()
-        return chain.proceed(request)
+        val response = chain.proceed(request)
+        
+        if (response.code == 401) {
+            runBlocking {
+                sessionRepository.clearSession()
+            }
+        }
+        
+        return response
     }
 }

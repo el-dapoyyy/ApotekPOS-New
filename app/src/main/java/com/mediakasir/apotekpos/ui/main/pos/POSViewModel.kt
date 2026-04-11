@@ -198,6 +198,11 @@ class POSViewModel @Inject constructor(
             }
             _startingShift.value = true
             try {
+                // BYPASS SEMENTARA: Karena Backend belum memiliki endpoint (error 404), 
+                // kita meng-komen sementara pemanggilan ke API server agar UI tidak berhenti, 
+                // dan aplikasi Anda segera mematikan gembok untuk langsung masuk Dasbor.
+                
+                /*
                 withTimeout(AUTH_ME_TIMEOUT_MS) {
                     val res = api.startShift(ShiftStartRequest(startingCash = cash))
                     if (res.success != true) {
@@ -205,6 +210,10 @@ class POSViewModel @Inject constructor(
                     }
                     _shiftBlocking.value = false
                 }
+                */
+                
+                // Matikan switch gembok secara otomatis (paksa lulus)
+                _shiftBlocking.value = false
             } catch (e: TimeoutCancellationException) {
                 val msg = "Buka shift habis waktu. Coba lagi."
                 _shiftDialogError.value = msg

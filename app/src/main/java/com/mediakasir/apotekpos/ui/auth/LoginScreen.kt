@@ -372,43 +372,6 @@ private fun LoginFormBody(
             color = CardSubtitle,
         )
 
-        val googleEnabled = googleWebClientId.isNotEmpty() && !isLoading
-        OutlinedButton(
-            onClick = onGoogleClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            enabled = googleEnabled,
-            shape = RoundedCornerShape(14.dp),
-        ) {
-            Text(
-                stringResource(R.string.login_with_google),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-        if (googleWebClientId.isEmpty()) {
-            Text(
-                text = stringResource(R.string.login_google_setup_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = CardSubtitle,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HorizontalDivider(modifier = Modifier.weight(1f))
-            Text(
-                text = stringResource(R.string.login_or),
-                style = MaterialTheme.typography.labelMedium,
-                color = CardSubtitle,
-                modifier = Modifier.padding(horizontal = 12.dp),
-            )
-            HorizontalDivider(modifier = Modifier.weight(1f))
-        }
-
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,
@@ -537,6 +500,45 @@ private fun LoginFormBody(
                     )
                 }
             }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HorizontalDivider(modifier = Modifier.weight(1f))
+            Text(
+                text = stringResource(R.string.login_or),
+                style = MaterialTheme.typography.labelMedium,
+                color = CardSubtitle,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f))
+        }
+
+        val googleEnabled = googleWebClientId.isNotEmpty() && !isLoading
+        OutlinedButton(
+            onClick = onGoogleClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            enabled = googleEnabled,
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Text(
+                stringResource(R.string.login_with_google),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        if (googleWebClientId.isEmpty()) {
+            Text(
+                text = stringResource(R.string.login_google_setup_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = CardSubtitle,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

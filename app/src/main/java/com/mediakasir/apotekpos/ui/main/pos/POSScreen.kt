@@ -199,34 +199,52 @@ fun POSScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    "Point of Sale",
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = TextPrimary,
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("Sales", fontSize = 13.sp, color = TextMuted)
-                            }
+                            OutlinedTextField(
+                                value = search,
+                                onValueChange = {
+                                    search = it
+                                    if (user != null && shiftGateResolved && !shiftBlocking && !posKasirCatalogBlocked) {
+                                        viewModel.loadProducts(branchId, it)
+                                    }
+                                },
+                                placeholder = { Text("Cari produk, SKU, atau barcode...", color = TextMuted) },
+                                trailingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextMuted) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedBorderColor = PosWebPrimary,
+                                    unfocusedBorderColor = InputBorder,
+                                    cursorColor = PosWebPrimaryDark,
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
                             if (branchName.isNotBlank()) {
-                                Surface(
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = PosWebPrimary.copy(alpha = 0.12f),
-                                ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    val parts = branchName.split("(", limit = 2)
                                     Text(
-                                        branchName,
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = PosWebPrimaryDark,
-                                        maxLines = 1,
+                                        parts[0].trim(),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary,
                                     )
+                                    if (parts.size > 1) {
+                                        Text(
+                                            "(${parts[1]}",
+                                            fontSize = 13.sp,
+                                            color = TextPrimary,
+                                        )
+                                    }
                                 }
                             }
+                            Spacer(modifier = Modifier.width(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { scanLauncher.launch(ScanOptions()) }) {
-                                    Icon(Icons.Filled.QrCodeScanner, contentDescription = "Pindai", tint = PosWebPrimaryDark)
+                                    Icon(Icons.Filled.QrCodeScanner, contentDescription = "Pindai", tint = TextPrimary)
                                 }
                                 if (!wide) {
                                     BadgedBox(
@@ -239,61 +257,53 @@ fun POSScreen(
                                         },
                                     ) {
                                         IconButton(onClick = { showCart = true }) {
-                                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Keranjang", tint = PosWebPrimaryDark)
+                                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Keranjang", tint = TextPrimary)
                                         }
                                     }
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (!netOk) {
-                                Surface(color = Warning.copy(alpha = 0.15f), shape = RoundedCornerShape(20.dp)) {
-                                    Text("Offline", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Warning, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        
+                        // Status offline / pending indicator dipinggirkan ke bawah search jika butuh
+                        if (!netOk || pendingOut > 0) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (!netOk) {
+                                    Surface(color = Warning.copy(alpha = 0.15f), shape = RoundedCornerShape(20.dp)) {
+                                        Text("Offline", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Warning, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    }
                                 }
-                            }
-                            if (pendingOut > 0) {
-                                Surface(color = Info.copy(alpha = 0.12f), shape = RoundedCornerShape(20.dp)) {
-                                    Text("$pendingOut antre kirim", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Info, fontSize = 12.sp)
+                                if (pendingOut > 0) {
+                                    Surface(color = Info.copy(alpha = 0.12f), shape = RoundedCornerShape(20.dp)) {
+                                        Text("$pendingOut antre kirim", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = Info, fontSize = 12.sp)
+                                    }
                                 }
                             }
                         }
+
                         Spacer(modifier = Modifier.height(14.dp))
-                        OutlinedTextField(
-                            value = search,
-                            onValueChange = {
-                                search = it
-                                if (user != null && shiftGateResolved && !shiftBlocking && !posKasirCatalogBlocked) {
-                                    viewModel.loadProducts(branchId, it)
+                        
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(listOf("Promo" to true, "Generic" to false, "Prescription" to false, "Supplements" to false, "Baby Care" to false)) { (btn, isSelected) ->
+                                if (isSelected) {
+                                    Button(
+                                        onClick = { },
+                                        colors = ButtonDefaults.buttonColors(containerColor = PosWebPrimary),
+                                        shape = RoundedCornerShape(20.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                    ) { Text(btn, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { },
+                                        shape = RoundedCornerShape(20.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, InputBorder),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                    ) { Text(btn, fontSize = 12.sp, color = TextPrimary) }
                                 }
-                            },
-                            placeholder = { Text("Cari produk, SKU, atau barcode…", color = TextMuted) },
-                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextMuted) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                focusedBorderColor = PosWebPrimary,
-                                unfocusedBorderColor = InputBorder,
-                                cursorColor = PosWebPrimaryDark,
-                            ),
-                            shape = RoundedCornerShape(14.dp),
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { },
-                                enabled = false,
-                                shape = RoundedCornerShape(12.dp),
-                            ) { Text("Promo", fontSize = 12.sp) }
-                            OutlinedButton(
-                                onClick = { },
-                                enabled = false,
-                                shape = RoundedCornerShape(12.dp),
-                            ) { Text("+ Racikan", fontSize = 12.sp) }
+                            }
                         }
                     }
                 }
@@ -556,95 +566,60 @@ fun ProductCard(product: Product, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(enabled = !isOutOfStock) { onClick() },
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isOutOfStock) 0.dp else 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isOutOfStock) 0.dp else 2.dp),
         colors = CardDefaults.cardColors(containerColor = if (isOutOfStock) Color(0xFFF1F5F9) else Color.White),
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.Start,
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = PosWebPrimary.copy(alpha = 0.12f),
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier
+                    .size(64.dp)
+                    .align(Alignment.CenterHorizontally),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Outlined.Science,
                         contentDescription = null,
                         tint = PosWebPrimaryDark,
-                        modifier = Modifier.size(26.dp),
+                        modifier = Modifier.size(32.dp),
                     )
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = catColor.copy(alpha = 0.15f),
-                    ) {
-                        Text(
-                            product.category,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = catColor,
-                        )
-                    }
-                    if (isOutOfStock) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Error.copy(alpha = 0.12f),
-                        ) {
-                            Text(
-                                "HABIS",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                fontSize = 10.sp,
-                                color = Error,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    } else {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = PosWebPrimary.copy(alpha = 0.12f),
-                        ) {
-                            Text(
-                                "${product.currentStock} PCS",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PosWebPrimaryDark,
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(16.dp))
+            
+            Text(
+                "${product.name}\n${product.unit}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isOutOfStock) TextMuted else TextPrimary,
+                maxLines = 2,
+                lineHeight = 16.sp,
+                modifier = Modifier.height(34.dp) // Maintain consistent height for 2 lines
+            )
+            
+            Spacer(Modifier.height(8.dp))
+            Text(
+                formatIDR(product.sellPrice),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isOutOfStock) TextMuted else Color.Black,
+            )
+            
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isOutOfStock) Error.copy(alpha = 0.12f) else catColor,
+            ) {
                 Text(
-                    product.sku,
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    maxLines = 1,
-                )
-                Text(
-                    product.name,
-                    fontSize = 15.sp,
+                    if (isOutOfStock) "HABIS" else product.category,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isOutOfStock) TextMuted else TextPrimary,
-                    maxLines = 2,
-                    lineHeight = 20.sp,
-                )
-                Text(product.unit, fontSize = 12.sp, color = TextMuted)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    formatIDR(product.sellPrice),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (isOutOfStock) TextMuted else PosWebPrimaryDark,
+                    color = if (isOutOfStock) Error else Color.White,
                 )
             }
         }

@@ -11,6 +11,7 @@
     <string name="nav_pos">POS</string>
     <string name="nav_stock">Stock</string>
     <string name="nav_history">History</string>
+    <string name="nav_laporan">Laporan</string>
     <string name="nav_settings">Settings</string>
     <string name="nav_prescriptions">Resep</string>
 

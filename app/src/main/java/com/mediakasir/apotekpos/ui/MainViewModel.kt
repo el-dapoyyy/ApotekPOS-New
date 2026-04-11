@@ -48,13 +48,17 @@ class MainViewModel @Inject constructor(
     val error: StateFlow<String?> = _error.asStateFlow()
 
     init {
-        loadSession()
+        observeSession()
     }
 
-    private fun loadSession() {
+    private fun observeSession() {
         viewModelScope.launch {
-            _license.value = session.getLicense()
-            _user.value = session.getUser()
+            launch {
+                session.licenseFlow.collect { _license.value = it }
+            }
+            launch {
+                session.userFlow.collect { _user.value = it }
+            }
         }
     }
 
