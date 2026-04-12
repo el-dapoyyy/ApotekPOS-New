@@ -32,6 +32,7 @@ fun SettingsScreen(
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showTutupKasirDialog by remember { mutableStateOf(false) }
     
     var selectedTab by remember { mutableStateOf("Informasi Apotek") }
     val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan")
@@ -171,6 +172,18 @@ fun SettingsScreen(
                 
                 Spacer(Modifier.height(32.dp))
                 
+                // Tutup Kasir Button
+                Button(
+                    onClick = { showTutupKasirDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Info),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Tutup Kasir", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                }
+                
+                Spacer(Modifier.height(16.dp))
+
                 // Solid Green Buttons (Mimicking "Manual Sync" and "Data Management" visually)
                 Button(
                     onClick = { showLogoutDialog = true },
@@ -207,6 +220,22 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (showTutupKasirDialog) {
+        AlertDialog(
+            onDismissRequest = { showTutupKasirDialog = false },
+            title = { Text("Tutup Kasir") },
+            text = { Text("Anda akan melakukan Tutup Kasir (End Shift) dan Logout. Lanjutkan?") },
+            confirmButton = {
+                Button(onClick = { showTutupKasirDialog = false; onLogout() }) { Text("Ya, Tutup") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTutupKasirDialog = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

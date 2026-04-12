@@ -11,14 +11,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -110,61 +121,107 @@ fun StokScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Background),
+                .background(Primary),
         ) {
-            Surface(
-                color = Primary,
-                shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
-                shadowElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth(),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp),
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        "Cek stok",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        text = "Cek Stok",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White,
+                        modifier = Modifier.align(Alignment.Center)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Hanya lihat — ubah data lewat ApoApps web",
-                        fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    OutlinedTextField(
-                        value = search,
-                        onValueChange = {
-                            search = it
-                            if (user != null) {
-                                viewModel.loadProducts(branchId, it)
-                            }
-                        },
-                        placeholder = { Text("Cari nama / barcode...", color = Color.White.copy(0.7f)) },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.White) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                            unfocusedContainerColor = Color.White.copy(alpha = 0.1f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            cursorColor = Color.White,
-                        ),
-                        shape = RoundedCornerShape(16.dp),
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = user?.name ?: "Kasir",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Icon(Icons.Filled.AccountCircle, contentDescription = "Profile", tint = Color.White)
+                    }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Kelola stok obat dengan mudah",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = search,
+                    onValueChange = {
+                        search = it
+                        if (user != null) {
+                            viewModel.loadProducts(branchId, it)
+                        }
+                    },
+                    placeholder = { Text("Cari nama obat / barcode...", color = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.Gray) },
+                    trailingIcon = {
+                        Row(modifier = Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Mic, contentDescription = null, tint = Color.Gray)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        focusedBorderColor = Color.White,
+                        unfocusedBorderColor = Color.White,
+                        cursorColor = Color.Black,
+                    ),
+                    shape = CircleShape,
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+                color = Background
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 24.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            color = Primary,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Filter", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Surface(shape = RoundedCornerShape(12.dp), color = Color.White, border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)) {
+                            Text("Jenis Obat", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontSize = 14.sp)
+                        }
+                        Surface(shape = RoundedCornerShape(12.dp), color = Color.White, border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)) {
+                            Text("Status Stok", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontSize = 14.sp)
+                        }
+                        Surface(shape = RoundedCornerShape(12.dp), color = Color.White, border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)) {
+                            Text("Urutkan", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontSize = 14.sp)
+                        }
+                    }
 
-            if (productsLoadError != null && products.isNotEmpty()) {
+                    if (productsLoadError != null && products.isNotEmpty()) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -212,10 +269,12 @@ fun StokScreen(
                 products.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Tidak ada produk di cache untuk cabang ini.", color = TextMuted)
                 }
-                else -> LazyColumn(
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     items(products) { product ->
                         StokReadOnlyRow(
@@ -228,7 +287,8 @@ fun StokScreen(
                             },
                         )
                     }
-                    item { Spacer(Modifier.height(72.dp)) }
+                }
+            }
                 }
             }
         }
@@ -271,57 +331,88 @@ private fun StokReadOnlyRow(
     product: Product,
     onBatches: () -> Unit,
 ) {
-    val catColor = getCategoryColor(product.category)
     val isLowStock = product.currentStock <= product.minStock
+    val progress = if (product.minStock > 0) {
+        (product.currentStock.toFloat() / (product.minStock * 2).toFloat()).coerceIn(0f, 1f)
+    } else {
+        if (product.currentStock > 0) 1f else 0f
+    }
+    val progressPercent = (progress * 100).toInt()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.Black.copy(alpha=0.05f))
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Surface(shape = RoundedCornerShape(8.dp), color = catColor.copy(alpha = 0.15f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(16.dp), color = Primary) {
+                    Text(
+                        "NEW",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        fontSize = 10.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                if (isLowStock) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = Warning.copy(alpha = 0.15f)) {
                         Text(
-                            product.category,
+                            "Stok Menipis",
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             fontSize = 10.sp,
-                            color = catColor,
+                            color = Warning,
                             fontWeight = FontWeight.Bold,
                         )
                     }
-                    if (isLowStock) {
-                        Surface(shape = RoundedCornerShape(8.dp), color = Warning.copy(alpha = 0.15f)) {
-                            Text(
-                                "Stok rendah",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                fontSize = 10.sp,
-                                color = Warning,
-                                fontWeight = FontWeight.Bold,
-                            )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    product.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onBatches, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Lihat batch", tint = TextSecondary)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("SKU/${product.sku} - ${product.currentStock}", fontSize = 13.sp, color = TextSecondary)
+                    Spacer(Modifier.height(4.dp))
+                    Text("${product.unit} • ${formatIDR(product.sellPrice)} || ${formatIDR(product.sellPrice)}", fontSize = 13.sp, color = TextSecondary)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Stok: ${product.currentStock} pcs", fontSize = 13.sp, color = TextSecondary)
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Primary.copy(alpha=0.2f),
+                            modifier = Modifier.width(60.dp).height(6.dp)
+                        ) {
+                             Surface(
+                                 shape = RoundedCornerShape(4.dp),
+                                 color = if (isLowStock) Warning else Primary,
+                                 modifier = Modifier.fillMaxWidth(progress).height(6.dp)
+                             ) {}
                         }
+                        Spacer(Modifier.width(8.dp))
+                        Text("$progressPercent%", fontSize=12.sp, fontWeight=FontWeight.Bold, color=TextPrimary)
+                        Spacer(Modifier.width(8.dp))
+                        Surface(shape=RoundedCornerShape(8.dp), color=if (isLowStock) Warning else Primary) {
+                           Text("$progressPercent%", modifier=Modifier.padding(horizontal=8.dp, vertical=4.dp), color=Color.White, fontSize=12.sp, fontWeight=FontWeight.Bold)
+                        } 
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(product.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
-                Text(
-                    "SKU ${product.sku} • ${product.unit} • ${formatIDR(product.sellPrice)}",
-                    fontSize = 13.sp,
-                    color = TextSecondary,
-                )
-                Text(
-                    "Stok ${product.currentStock} PCS • Min ${product.minStock} PCS",
-                    fontSize = 13.sp,
-                    color = TextSecondary,
-                )
-            }
-            IconButton(onClick = onBatches) {
-                Icon(Icons.Filled.Inventory2, contentDescription = "Lihat batch", tint = Info)
             }
         }
     }

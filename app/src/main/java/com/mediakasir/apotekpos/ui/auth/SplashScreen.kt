@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -131,66 +132,14 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Box(
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = R.drawable.app_logo_horizontal),
+                contentDescription = "App Logo",
                 modifier = Modifier
-                    .size(96.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.LocalHospital,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(56.dp),
-                )
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(
-                        style = SpanStyle(
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = MaterialTheme.typography.displayLarge.fontSize,
-                        ),
-                    ) {
-                        append(stringResource(R.string.wordmark_prefix))
-                    }
-                    withStyle(
-                        style = SpanStyle(
-                            color = WordmarkAccent,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = MaterialTheme.typography.displayLarge.fontSize,
-                        ),
-                    ) {
-                        append(stringResource(R.string.wordmark_suffix))
-                    }
-                },
-                textAlign = TextAlign.Center,
+                    .fillMaxWidth(0.8f)
+                    .height(120.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.app_tagline),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF99F6E4).copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.1f))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.premium_edition),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.92f),
-                )
-            }
         }
 
         Text(
