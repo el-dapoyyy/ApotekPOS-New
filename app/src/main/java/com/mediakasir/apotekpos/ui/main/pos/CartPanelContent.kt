@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.ShoppingCart
@@ -36,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mediakasir.apotekpos.ui.theme.Border
+import com.mediakasir.apotekpos.ui.theme.ApoPrimary
 import com.mediakasir.apotekpos.ui.theme.Error
 import com.mediakasir.apotekpos.ui.theme.PosWebPrimary
 import com.mediakasir.apotekpos.ui.theme.PosWebPrimaryDark
@@ -107,13 +110,43 @@ fun CartPanelContent(
                     color = TextSecondary
                 )
             }
-            if (showTopClose && onDismiss != null) {
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Tutup")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (cart.isNotEmpty()) {
+                    TextButton(onClick = { viewModel.clearCart() }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Clear All", tint = Error, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Clear All", color = Error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (showTopClose && onDismiss != null) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Filled.Close, contentDescription = "Tutup")
+                    }
                 }
             }
         }
         
+        // Customer Name Field
+        val customerName by viewModel.customerName.collectAsState()
+        OutlinedTextField(
+            value = customerName,
+            onValueChange = { viewModel.setCustomerName(it) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 12.dp),
+            label = { Text("Nama Pelanggan / Pasien", fontSize = 12.sp) },
+            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = ApoPrimary, modifier = Modifier.size(20.dp)) },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFFF3F4F6),
+                unfocusedContainerColor = Color(0xFFF3F4F6),
+                unfocusedBorderColor = Color.Transparent,
+                focusedBorderColor = ApoPrimary,
+            ),
+            shape = RoundedCornerShape(12.dp)
+        )
+
         // MIDDLE CONTENT (Scrollable)
         Box(modifier = Modifier.weight(1f)) {
             if (cart.isEmpty()) {

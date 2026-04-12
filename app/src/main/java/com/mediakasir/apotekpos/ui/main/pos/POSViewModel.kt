@@ -78,6 +78,9 @@ class POSViewModel @Inject constructor(
     private val _discount = MutableStateFlow("0")
     val discount: StateFlow<String> = _discount.asStateFlow()
 
+    private val _customerName = MutableStateFlow("Umum")
+    val customerName: StateFlow<String> = _customerName.asStateFlow()
+
     private val _isLoadingProducts = MutableStateFlow(false)
     val isLoadingProducts: StateFlow<Boolean> = _isLoadingProducts.asStateFlow()
 
@@ -348,6 +351,10 @@ class POSViewModel @Inject constructor(
         _discount.value = d
     }
 
+    fun setCustomerName(name: String) {
+        _customerName.value = name
+    }
+
     fun addPayment() {
         _payments.value = _payments.value + PaymentEntry(method = "Transfer")
     }
@@ -556,6 +563,7 @@ class POSViewModel @Inject constructor(
         _cart.value = emptyList()
         _payments.value = listOf(PaymentEntry())
         _discount.value = "0"
+        _customerName.value = "Umum"
     }
 
     fun dismissReceipt() {

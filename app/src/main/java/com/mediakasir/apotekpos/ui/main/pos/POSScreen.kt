@@ -3,6 +3,7 @@ package com.mediakasir.apotekpos.ui.main.pos
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -112,7 +113,13 @@ fun POSScreen(
     val posKasirAccessDialogText by viewModel.posKasirAccessDialogText.collectAsState()
 
     var search by remember { mutableStateOf("") }
+    var activeCategory by remember { mutableStateOf("Semua") }
     var showCart by remember { mutableStateOf(false) }
+
+    val filteredProducts = remember(products, activeCategory) {
+        if (activeCategory == "Semua") products
+        else products.filter { it.category.equals(activeCategory, ignoreCase = true) }
+    }
     var toastMsg by remember { mutableStateOf<String?>(null) }
 
     val branchId = remember(license, user) { effectiveBranchId(license, user) }
@@ -401,12 +408,33 @@ fun POSScreen(
 
                         /* ─── WIDE LAYOUT (tablet) ─── */
                         wide -> Row(Modifier.weight(1f).fillMaxWidth()) {
-                            // Left: product catalog
+                            // Left: Promo & Vouchers
                             Column(
                                 modifier = Modifier
-                                    .weight(0.6f)
+                                    .weight(0.24f)
                                     .fillMaxHeight()
-                                    .padding(start = 20.dp, end = 8.dp, top = 16.dp),
+                                    .background(Color.White)
+                                    .padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 16.dp)
+                                    .verticalScroll(rememberScrollState()),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.LocalActivity, contentDescription = null, tint = ApoPrimaryDark, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Promo & Vouchers", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text("ACTIVE PROMOTIONS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                                Spacer(Modifier.height(16.dp))
+
+                                Text("Belum ada promo aktif", fontSize = 12.sp, color = TextMuted)
+                            }
+
+                            // Middle: product catalog
+                            Column(
+                                modifier = Modifier
+                                    .weight(0.46f)
+                                    .fillMaxHeight()
+                                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
                             ) {
                                 // Section title
                                 Text(
@@ -425,17 +453,17 @@ fun POSScreen(
 
                                 // Filter tabs
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("Semua" to true, "Resep" to false, "OTC" to false).forEach { (label, sel) ->
-                                        if (sel) {
+                                    listOf("Semua", "Resep", "OTC").forEach { label ->
+                                        if (activeCategory == label) {
                                             Button(
-                                                onClick = { },
+                                                onClick = { activeCategory = label },
                                                 colors = ButtonDefaults.buttonColors(containerColor = ApoPrimary),
                                                 shape = RoundedCornerShape(20.dp),
                                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                                             ) { Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
                                         } else {
                                             OutlinedButton(
-                                                onClick = { },
+                                                onClick = { activeCategory = label },
                                                 shape = RoundedCornerShape(20.dp),
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, InputBorder),
                                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
@@ -454,7 +482,7 @@ fun POSScreen(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    items(products) { product ->
+                                    items(filteredProducts) { product ->
                                         ProductCard(product) {
                                             val err = viewModel.addToCart(product)
                                             if (err != null) toastMsg = err
@@ -466,7 +494,7 @@ fun POSScreen(
                             // Right: cart sidebar
                             Surface(
                                 modifier = Modifier
-                                    .weight(0.4f)
+                                    .weight(0.3f)
                                     .fillMaxHeight(),
                                 color = Color(0xFFF9FAFB),
                             ) {
@@ -500,6 +528,30 @@ fun POSScreen(
                             )
                             Spacer(Modifier.height(8.dp))
 
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("Semua", "Resep", "OTC").forEach { label ->
+                                    if (activeCategory == label) {
+                                        Button(
+                                            onClick = { activeCategory = label },
+                                            colors = ButtonDefaults.buttonColors(containerColor = ApoPrimary),
+                                            shape = RoundedCornerShape(20.dp),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                        ) { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { activeCategory = label },
+                                            shape = RoundedCornerShape(20.dp),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, InputBorder),
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                        ) { Text(label, fontSize = 12.sp, color = TextPrimary) }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(gridCols),
                                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -507,7 +559,7 @@ fun POSScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                items(products) { product ->
+                                items(filteredProducts) { product ->
                                     ProductCard(product) {
                                         val err = viewModel.addToCart(product)
                                         if (err != null) toastMsg = err
@@ -721,10 +773,10 @@ fun ProductCard(product: Product, onClick: () -> Unit) {
 
             Spacer(Modifier.height(12.dp))
 
-            // Bottom row: price + add button
+            // Bottom row: price
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -733,24 +785,6 @@ fun ProductCard(product: Product, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = if (isOutOfStock) TextMuted else Color.Black,
                 )
-                // "+" button
-                Surface(
-                    shape = CircleShape,
-                    color = if (isOutOfStock) Color(0xFFE5E7EB) else ApoPrimary,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = !isOutOfStock) { onClick() },
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = "Tambah",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
             }
         }
     }
@@ -881,3 +915,4 @@ fun ReceiptDialog(
         }
     }
 }
+
