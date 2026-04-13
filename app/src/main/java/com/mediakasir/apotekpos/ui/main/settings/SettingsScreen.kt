@@ -28,6 +28,7 @@ fun SettingsScreen(
     license: LicenseInfo?,
     user: UserInfo?,
     onLogout: () -> Unit,
+    onLogoutAllDevices: () -> Unit,
     onResetApp: () -> Unit,
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -192,6 +193,16 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = onLogoutAllDevices,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Logout Semua Perangkat", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 
                 Spacer(Modifier.height(16.dp))

@@ -217,6 +217,12 @@ fun ApotekNavHost() {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    onLogoutAllDevices = {
+                        viewModel.logoutAllDevices()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
                     onResetApp = {
                         viewModel.resetAppData()
                         navController.navigate(Screen.Login.route) {

@@ -3,6 +3,7 @@ package com.mediakasir.apotekpos.ui.main.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mediakasir.apotekpos.data.model.AcknowledgeMultipleRequest
 import com.mediakasir.apotekpos.data.model.AlertData
 import com.mediakasir.apotekpos.data.model.DashboardData
 import com.mediakasir.apotekpos.data.model.toAlertBatch
@@ -23,6 +24,8 @@ class DashboardViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
+    private var lastLoadedBranchId: String = ""
+
     private val _dashboard = MutableStateFlow<DashboardData?>(null)
     val dashboard: StateFlow<DashboardData?> = _dashboard.asStateFlow()
 
@@ -37,6 +40,7 @@ class DashboardViewModel @Inject constructor(
 
     fun load(branchId: String) {
         viewModelScope.launch {
+            lastLoadedBranchId = branchId
             _isLoading.value = true
             _error.value = null
             try {
@@ -74,6 +78,47 @@ class DashboardViewModel @Inject constructor(
                     expiringBatches = expiringBatches,
                     lowStockProducts = lowStockProducts,
                 )
+            } catch (e: Exception) {
+                _error.value = appContext.mapNetworkOrGenericError(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun acknowledgeAllExpiry() {
+        viewModelScope.launch {
+            val alertIds = _alerts.value?.expiredBatches.orEmpty().mapNotNull { it.id.toIntOrNull() } +
+                _alerts.value?.expiringBatches.orEmpty().mapNotNull { it.id.toIntOrNull() }
+            if (alertIds.isEmpty()) return@launch
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val env = api.acknowledgeExpiryMultiple(AcknowledgeMultipleRequest(alertIds.distinct()))
+                if (env.success != true) {
+                    throw IllegalStateException(env.message ?: "Gagal acknowledge alert kadaluarsa")
+                }
+                load(lastLoadedBranchId)
+            } catch (e: Exception) {
+                _error.value = appContext.mapNetworkOrGenericError(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun acknowledgeAllStock() {
+        viewModelScope.launch {
+            val alertIds = _alerts.value?.lowStockProducts.orEmpty().mapNotNull { it.alertId.toIntOrNull() }
+            if (alertIds.isEmpty()) return@launch
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val env = api.acknowledgeStockMultiple(AcknowledgeMultipleRequest(alertIds.distinct()))
+                if (env.success != true) {
+                    throw IllegalStateException(env.message ?: "Gagal acknowledge alert stok")
+                }
+                load(lastLoadedBranchId)
             } catch (e: Exception) {
                 _error.value = appContext.mapNetworkOrGenericError(e)
             } finally {

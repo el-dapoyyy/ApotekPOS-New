@@ -72,12 +72,29 @@ data class PosProductDto(
     val stock: PosStockDto? = null,
     @SerializedName("nearest_expiry") val nearestExpiry: PosNearestExpiryDto? = null,
     @SerializedName("updated_at") val updatedAt: String? = null,
+    /** List of active discounts for this product (calculated by backend). */
+    val discounts: List<Map<String, Any>>? = null,
+    /** List of active promotions for this product. */
+    val promotions: List<Map<String, Any>>? = null,
 )
 
 fun PosProductDto.toProduct(branchId: String): Product {
     val code = sku?.takeIf { it.isNotBlank() }
         ?: barcode?.takeIf { it.isNotBlank() }
         ?: "OBT-$id"
+    val discountLabel = discounts?.firstOrNull()?.let { first ->
+        val type = first["discount_type"]?.toString()?.lowercase().orEmpty()
+        val value = first["discount_value"]?.toString()?.trim().orEmpty()
+        when {
+            type == "percentage" && value.isNotEmpty() -> "Diskon $value%"
+            type == "fixed" && value.isNotEmpty() -> "Potongan Rp$value"
+            else -> first["name"]?.toString()?.takeIf { it.isNotBlank() } ?: "Diskon"
+        }
+    }
+    val promoLabel = promotions?.firstOrNull()?.let { first ->
+        first["name"]?.toString()?.takeIf { it.isNotBlank() } ?: "Promo"
+    }
+
     return Product(
         id = id.toString(),
         sku = code,
@@ -91,6 +108,8 @@ fun PosProductDto.toProduct(branchId: String): Product {
         branchId = branchId,
         currentStock = stock?.total ?: 0,
         isActive = true,
+        discountLabel = discountLabel,
+        promoLabel = promoLabel,
     )
 }
 
@@ -168,6 +187,7 @@ data class PosTransactionSyncDto(
     @SerializedName("local_transaction_id") val localTransactionId: String,
     @SerializedName("customer_id") val customerId: Int? = null,
     @SerializedName("prescription_id") val prescriptionId: Int? = null,
+    @SerializedName("discount_id") val discountId: Int? = null,
     val subtotal: Double,
     @SerializedName("discount_amount") val discountAmount: Double = 0.0,
     @SerializedName("tax_amount") val taxAmount: Double = 0.0,
@@ -334,11 +354,8 @@ fun TransactionDetailDto.toDetailTransaction(): Transaction {
         change = (totalPaid - (grandTotal ?: 0.0)).coerceAtLeast(0.0),
         notes = notes.orEmpty(),
         createdAt = completedAt.orEmpty(),
-        listItemsCount = itemsUi.size,
     )
 }
-
-// --- Alerts summary ---
 
 data class AlertsSummaryEnvelope(
     val success: Boolean = false,
@@ -414,6 +431,79 @@ data class StockAlertRow(
     val product: ExpiryAlertProduct? = null,
 )
 
+data class AcknowledgeMultipleRequest(
+    @SerializedName("alert_ids") val alertIds: List<Int>,
+)
+
+// --- POS discounts / promotions ---
+
+data class PosDiscountsEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<PosDiscountDto>? = emptyList(),
+)
+
+data class PosDiscountDto(
+    val id: Int,
+    val name: String? = null,
+    val code: String? = null,
+    val type: String? = null,
+    val value: Double? = 0.0,
+    @SerializedName("min_purchase") val minPurchase: Double? = 0.0,
+    @SerializedName("max_discount") val maxDiscount: Double? = null,
+    @SerializedName("valid_from") val validFrom: String? = null,
+    @SerializedName("valid_until") val validUntil: String? = null,
+    @SerializedName("usage_limit") val usageLimit: Int? = null,
+    @SerializedName("usage_count") val usageCount: Int? = 0,
+)
+
+data class PosPromotionsEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<PosPromotionDto>? = emptyList(),
+)
+
+data class PosPromotionDto(
+    val id: Int,
+    val name: String? = null,
+    val description: String? = null,
+    val type: String? = null,
+    @SerializedName("valid_from") val validFrom: String? = null,
+    @SerializedName("valid_until") val validUntil: String? = null,
+    @SerializedName("promotion_products") val promotionProducts: List<PosPromotionProductDto>? = emptyList(),
+)
+
+data class PosPromotionProductDto(
+    @SerializedName("product_id") val productId: Int,
+    val name: String? = null,
+    val sku: String? = null,
+    @SerializedName("qty_required") val qtyRequired: Int? = null,
+    @SerializedName("special_price") val specialPrice: Double? = null,
+)
+
+data class PosCategoriesEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<PosCategoryDto>? = emptyList(),
+)
+
+data class PosCategoryDto(
+    val id: Int,
+    val name: String,
+)
+
+data class PosUnitsEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<PosUnitDto>? = emptyList(),
+)
+
+data class PosUnitDto(
+    val id: Int,
+    val name: String,
+    val abbreviation: String? = null,
+)
+
 fun ExpiryAlertRow.toAlertBatch(branchId: String): Batch {
     val expStr = expiredDate?.take(10).orEmpty()
     val today = java.time.LocalDate.now()
@@ -438,6 +528,7 @@ fun ExpiryAlertRow.toAlertBatch(branchId: String): Batch {
 
 fun StockAlertRow.toLowStockProduct(): LowStockProduct = LowStockProduct(
     id = (productId ?: product?.id ?: 0).toString(),
+    alertId = id.toString(),
     name = product?.name ?: "-",
     currentStock = currentStock ?: 0,
     minStock = minStock ?: 0,
@@ -497,4 +588,149 @@ data class PosReturnCreateResult(
     @SerializedName("total_amount") val totalAmount: Double? = null,
     @SerializedName("refund_method") val refundMethod: String? = null,
     @SerializedName("created_at") val createdAt: String? = null,
+)
+
+data class PosReturnDetailEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosReturnDetailDto? = null,
+)
+
+data class PosReturnDetailDto(
+    val id: Int,
+    @SerializedName("return_number") val returnNumber: String? = null,
+    @SerializedName("invoice_number") val invoiceNumber: String? = null,
+    @SerializedName("total_amount") val totalAmount: Double? = null,
+    @SerializedName("refund_method") val refundMethod: String? = null,
+    val reason: String? = null,
+    val status: String? = null,
+    val notes: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+)
+
+// --- POS customers ---
+
+data class PosCustomersEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosCustomersPayload? = null,
+)
+
+data class PosCustomersPayload(
+    val customers: List<PosCustomerDto>? = emptyList(),
+    val pagination: PosPagination? = null,
+)
+
+data class PosCustomerDto(
+    val id: Int,
+    val name: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+)
+
+data class PosCustomerDetailEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosCustomerDto? = null,
+)
+
+data class PosCustomerUpsertRequest(
+    val name: String,
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+)
+
+// --- POS doctors ---
+
+data class PosDoctorsEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosDoctorsPayload? = null,
+)
+
+data class PosDoctorsPayload(
+    val doctors: List<PosDoctorDto>? = emptyList(),
+    val pagination: PosPagination? = null,
+)
+
+data class PosDoctorDto(
+    val id: Int,
+    val name: String? = null,
+    @SerializedName("sip_number") val sipNumber: String? = null,
+    val phone: String? = null,
+    @SerializedName("clinic_name") val clinicName: String? = null,
+)
+
+data class PosDoctorDetailEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosDoctorDto? = null,
+)
+
+data class PosDoctorCreateRequest(
+    val name: String,
+    @SerializedName("sip_number") val sipNumber: String? = null,
+    val phone: String? = null,
+    @SerializedName("clinic_name") val clinicName: String? = null,
+)
+
+// --- POS prescriptions ---
+
+data class PosPrescriptionsEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosPrescriptionsPayload? = null,
+)
+
+data class PosPrescriptionsPayload(
+    val prescriptions: List<PosPrescriptionDto>? = emptyList(),
+    val pagination: PosPagination? = null,
+)
+
+data class PosPrescriptionDto(
+    val id: Int,
+    @SerializedName("prescription_number") val prescriptionNumber: String? = null,
+    @SerializedName("customer_name") val customerName: String? = null,
+    @SerializedName("doctor_name") val doctorName: String? = null,
+    val status: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+)
+
+data class PosPrescriptionDetailEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: PosPrescriptionDetailDto? = null,
+)
+
+data class PosPrescriptionDetailDto(
+    val id: Int,
+    @SerializedName("prescription_number") val prescriptionNumber: String? = null,
+    @SerializedName("customer_id") val customerId: Int? = null,
+    @SerializedName("doctor_id") val doctorId: Int? = null,
+    val notes: String? = null,
+    val status: String? = null,
+    val items: List<PosPrescriptionItemDto>? = emptyList(),
+)
+
+data class PosPrescriptionItemDto(
+    @SerializedName("product_id") val productId: Int,
+    val quantity: Double,
+    val dosage: String? = null,
+    val instruction: String? = null,
+)
+
+data class PosPrescriptionCreateRequest(
+    @SerializedName("customer_id") val customerId: Int,
+    @SerializedName("doctor_id") val doctorId: Int? = null,
+    val notes: String? = null,
+    val items: List<PosPrescriptionItemCreateRequest>,
+)
+
+data class PosPrescriptionItemCreateRequest(
+    @SerializedName("product_id") val productId: Int,
+    val quantity: Double,
+    val dosage: String? = null,
+    val instruction: String? = null,
 )

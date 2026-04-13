@@ -19,6 +19,12 @@ interface ApiService {
     @GET("auth/me")
     suspend fun authMe(): AuthMeEnvelope
 
+    @POST("auth/logout")
+    suspend fun logout(): ApiMessageEnvelope
+
+    @POST("auth/logout-all")
+    suspend fun logoutAll(): ApiMessageEnvelope
+
     /** Buka shift / clock-in. Sesuaikan path jika backend berbeda (mis. `pos/shifts/start`). */
     @POST("auth/shift/start")
     suspend fun startShift(@Body body: ShiftStartRequest): ShiftStartEnvelope
@@ -40,6 +46,18 @@ interface ApiService {
 
     @GET("pos/products/{id}")
     suspend fun getProductDetail(@Path("id") id: Int): ProductDetailEnvelope
+
+    @GET("pos/products/categories")
+    suspend fun getProductCategories(): PosCategoriesEnvelope
+
+    @GET("pos/products/units")
+    suspend fun getProductUnits(): PosUnitsEnvelope
+
+    @GET("pos/discounts")
+    suspend fun getDiscounts(): PosDiscountsEnvelope
+
+    @GET("pos/promotions")
+    suspend fun getPromotions(): PosPromotionsEnvelope
 
     // --- POS transactions (doc §10–12) ---
 
@@ -86,4 +104,65 @@ interface ApiService {
 
     @POST("pos/returns")
     suspend fun createReturn(@Body body: PosReturnCreateRequest): PosReturnCreateEnvelope
+
+    @GET("pos/returns/{id}")
+    suspend fun getReturnDetail(@Path("id") id: Int): PosReturnDetailEnvelope
+
+    @GET("pos/customers")
+    suspend fun listCustomers(
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 20,
+        @Query("search") search: String? = null,
+    ): PosCustomersEnvelope
+
+    @GET("pos/customers/{id}")
+    suspend fun getCustomerDetail(@Path("id") id: Int): PosCustomerDetailEnvelope
+
+    @POST("pos/customers")
+    suspend fun createCustomer(@Body body: PosCustomerUpsertRequest): PosCustomerDetailEnvelope
+
+    @PUT("pos/customers/{id}")
+    suspend fun updateCustomer(
+        @Path("id") id: Int,
+        @Body body: PosCustomerUpsertRequest,
+    ): PosCustomerDetailEnvelope
+
+    @GET("pos/doctors")
+    suspend fun listDoctors(
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 20,
+        @Query("search") search: String? = null,
+    ): PosDoctorsEnvelope
+
+    @GET("pos/doctors/{id}")
+    suspend fun getDoctorDetail(@Path("id") id: Int): PosDoctorDetailEnvelope
+
+    @POST("pos/doctors")
+    suspend fun createDoctor(@Body body: PosDoctorCreateRequest): PosDoctorDetailEnvelope
+
+    @GET("pos/prescriptions")
+    suspend fun listPrescriptions(
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 20,
+        @Query("search") search: String? = null,
+        @Query("status") status: String? = null,
+    ): PosPrescriptionsEnvelope
+
+    @GET("pos/prescriptions/{id}")
+    suspend fun getPrescriptionDetail(@Path("id") id: Int): PosPrescriptionDetailEnvelope
+
+    @POST("pos/prescriptions")
+    suspend fun createPrescription(@Body body: PosPrescriptionCreateRequest): PosPrescriptionDetailEnvelope
+
+    @POST("alerts/expiry/{id}/acknowledge")
+    suspend fun acknowledgeExpiryAlert(@Path("id") id: Int): ApiMessageEnvelope
+
+    @POST("alerts/stock/{id}/acknowledge")
+    suspend fun acknowledgeStockAlert(@Path("id") id: Int): ApiMessageEnvelope
+
+    @POST("alerts/expiry/acknowledge-multiple")
+    suspend fun acknowledgeExpiryMultiple(@Body body: AcknowledgeMultipleRequest): ApiMessageEnvelope
+
+    @POST("alerts/stock/acknowledge-multiple")
+    suspend fun acknowledgeStockMultiple(@Body body: AcknowledgeMultipleRequest): ApiMessageEnvelope
 }

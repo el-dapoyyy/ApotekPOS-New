@@ -201,7 +201,11 @@ data class Product(
     @SerializedName("min_stock") val minStock: Int = 10,
     @SerializedName("branch_id") val branchId: String = "",
     @SerializedName("current_stock") val currentStock: Int = 0,
-    @SerializedName("is_active") val isActive: Boolean = true
+    @SerializedName("is_active") val isActive: Boolean = true,
+    /** Label untuk menampilkan diskon (e.g. "Diskon 20%" atau "Potongan Rp50.000"). */
+    val discountLabel: String? = null,
+    /** Label untuk menampilkan promo (e.g. "Beli 2 dapat 1"). */
+    val promoLabel: String? = null,
 )
 
 data class ProductCreate(
@@ -337,6 +341,7 @@ data class AlertData(
 
 data class LowStockProduct(
     val id: String,
+    @SerializedName("alert_id") val alertId: String = "",
     val name: String,
     @SerializedName("current_stock") val currentStock: Int,
     @SerializedName("min_stock") val minStock: Int

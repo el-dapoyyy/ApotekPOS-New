@@ -10,7 +10,9 @@ import com.mediakasir.apotekpos.data.local.ProductCacheDao
 import com.mediakasir.apotekpos.data.local.toCachedEntity
 import com.mediakasir.apotekpos.data.local.toProductModel
 import com.mediakasir.apotekpos.data.model.PaymentDetail
+import com.mediakasir.apotekpos.data.model.PosDiscountDto
 import com.mediakasir.apotekpos.data.model.PosPaymentLineDto
+import com.mediakasir.apotekpos.data.model.PosPromotionDto
 import com.mediakasir.apotekpos.data.model.PosProductDto
 import com.mediakasir.apotekpos.data.model.PosTransactionLineDto
 import com.mediakasir.apotekpos.data.model.PosTransactionSyncDto
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 
@@ -80,6 +83,18 @@ class POSViewModel @Inject constructor(
 
     private val _customerName = MutableStateFlow("Umum")
     val customerName: StateFlow<String> = _customerName.asStateFlow()
+
+    private val _discounts = MutableStateFlow<List<PosDiscountDto>>(emptyList())
+    val discounts: StateFlow<List<PosDiscountDto>> = _discounts.asStateFlow()
+
+    private val _promotions = MutableStateFlow<List<PosPromotionDto>>(emptyList())
+    val promotions: StateFlow<List<PosPromotionDto>> = _promotions.asStateFlow()
+
+    private val _selectedDiscountId = MutableStateFlow<Int?>(null)
+    val selectedDiscountId: StateFlow<Int?> = _selectedDiscountId.asStateFlow()
+
+    private val _selectedDiscountLabel = MutableStateFlow<String?>(null)
+    val selectedDiscountLabel: StateFlow<String?> = _selectedDiscountLabel.asStateFlow()
 
     private val _isLoadingProducts = MutableStateFlow(false)
     val isLoadingProducts: StateFlow<Boolean> = _isLoadingProducts.asStateFlow()
@@ -272,6 +287,9 @@ class POSViewModel @Inject constructor(
                     return@launch
                 }
                 _products.value = fetchAndCacheProducts(branchId, search)
+                if (_discounts.value.isEmpty() || _promotions.value.isEmpty()) {
+                    loadMarketingData()
+                }
                 checkAlerts() // Update alert badge
             } catch (e: Exception) {
                 val msg = formatApiThrowable(e, gson)
@@ -281,6 +299,21 @@ class POSViewModel @Inject constructor(
                 }
             } finally {
                 _isLoadingProducts.value = false
+            }
+        }
+    }
+
+    private suspend fun loadMarketingData() {
+        runCatching {
+            val discountEnv = api.getDiscounts()
+            if (discountEnv.success == true) {
+                _discounts.value = discountEnv.data.orEmpty()
+            }
+        }
+        runCatching {
+            val promotionEnv = api.getPromotions()
+            if (promotionEnv.success == true) {
+                _promotions.value = promotionEnv.data.orEmpty()
             }
         }
     }
@@ -349,6 +382,43 @@ class POSViewModel @Inject constructor(
 
     fun setDiscount(d: String) {
         _discount.value = d
+        _selectedDiscountId.value = null
+        _selectedDiscountLabel.value = null
+    }
+
+    fun applyDiscount(discount: PosDiscountDto): String? {
+        val subtotal = getSubtotal()
+        val minPurchase = discount.minPurchase ?: 0.0
+        if (subtotal < minPurchase) {
+            return "Minimal belanja ${minPurchase.toInt()} untuk promo ini"
+        }
+        val usageLimit = discount.usageLimit
+        val usageCount = discount.usageCount ?: 0
+        if (usageLimit != null && usageCount >= usageLimit) {
+            return "Voucher sudah mencapai batas penggunaan"
+        }
+        val today = LocalDate.now()
+        val start = discount.validFrom?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        val end = discount.validUntil?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        if (start != null && today.isBefore(start)) return "Voucher belum aktif"
+        if (end != null && today.isAfter(end)) return "Voucher sudah kedaluwarsa"
+
+        val raw = when (discount.type?.lowercase()) {
+            "percentage" -> subtotal * ((discount.value ?: 0.0) / 100.0)
+            else -> discount.value ?: 0.0
+        }
+        val capped = discount.maxDiscount?.let { max -> minOf(raw, max) } ?: raw
+        val appliedAmount = capped.coerceAtMost(subtotal).coerceAtLeast(0.0)
+        _discount.value = appliedAmount.toString()
+        _selectedDiscountId.value = discount.id
+        _selectedDiscountLabel.value = discount.code ?: discount.name ?: "Promo #${discount.id}"
+        return null
+    }
+
+    fun clearAppliedDiscount() {
+        _discount.value = "0"
+        _selectedDiscountId.value = null
+        _selectedDiscountLabel.value = null
     }
 
     fun setCustomerName(name: String) {
@@ -357,6 +427,10 @@ class POSViewModel @Inject constructor(
 
     fun addPayment() {
         _payments.value = _payments.value + PaymentEntry(method = "Transfer")
+    }
+
+    fun addPayment(entry: PaymentEntry) {
+        _payments.value = _payments.value + entry
     }
 
     fun removePayment(id: Long) {
@@ -376,10 +450,44 @@ class POSViewModel @Inject constructor(
         }
     }
 
+    fun updatePayment(index: Int, amount: String) {
+        if (index >= 0 && index < _payments.value.size) {
+            val payment = _payments.value[index]
+            _payments.value = _payments.value.toMutableList().apply {
+                set(index, payment.copy(amount = amount))
+            }
+        }
+    }
+
+    fun getPayments(): List<PaymentEntry> = _payments.value
+
+    fun setCashAmount(amount: Double) {
+        if (amount <= 0.0) return
+        val normalized = amount.toLong().toString()
+        val existingIndex = _payments.value.indexOfFirst { it.method.equals("Tunai", ignoreCase = true) }
+        if (existingIndex >= 0) {
+            updatePayment(existingIndex, normalized)
+            return
+        }
+
+        val placeholderIndex = _payments.value.indexOfFirst {
+            it.method.equals("Transfer", ignoreCase = true) && parseMoneyInputToDouble(it.amount) == null
+        }
+        if (placeholderIndex >= 0) {
+            val current = _payments.value[placeholderIndex]
+            _payments.value = _payments.value.toMutableList().apply {
+                set(placeholderIndex, current.copy(method = "Tunai", amount = normalized))
+            }
+            return
+        }
+
+        addPayment(PaymentEntry(method = "Tunai", amount = normalized))
+    }
+
     fun getSubtotal(): Double = _cart.value.sumOf { it.product.sellPrice * it.qty }
     fun getDiscountAmt(): Double = _discount.value.toDoubleOrNull() ?: 0.0
     fun getTotal(): Double = maxOf(0.0, getSubtotal() - getDiscountAmt())
-    fun getTotalPaid(): Double = _payments.value.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    fun getTotalPaid(): Double = _payments.value.sumOf { parseMoneyInputToDouble(it.amount) ?: 0.0 }
     fun getChange(): Double = getTotalPaid() - getTotal()
     fun getCartCount(): Int = _cart.value.sumOf { it.qty }
 
@@ -396,7 +504,7 @@ class POSViewModel @Inject constructor(
                 }
                 val validPayments = _payments.value
                     .mapNotNull { e ->
-                        val amt = e.amount.toDoubleOrNull() ?: 0.0
+                        val amt = parseMoneyInputToDouble(e.amount) ?: 0.0
                         if (amt <= 0.0) null else e to amt
                     }
                 if (validPayments.isEmpty()) {
@@ -436,6 +544,7 @@ class POSViewModel @Inject constructor(
                             localTransactionId = localId,
                             customerId = null,
                             prescriptionId = null,
+                            discountId = _selectedDiscountId.value,
                             subtotal = subtotal,
                             discountAmount = disc,
                             taxAmount = 0.0,
@@ -563,6 +672,8 @@ class POSViewModel @Inject constructor(
         _cart.value = emptyList()
         _payments.value = listOf(PaymentEntry())
         _discount.value = "0"
+        _selectedDiscountId.value = null
+        _selectedDiscountLabel.value = null
         _customerName.value = "Umum"
     }
 

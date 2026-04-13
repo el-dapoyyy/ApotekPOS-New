@@ -193,7 +193,11 @@ fun DashboardScreen(
                     // Alerts
                     alerts?.let { alertData ->
                         if (alertData.expiringBatches.isNotEmpty() || alertData.expiredBatches.isNotEmpty() || alertData.lowStockProducts.isNotEmpty()) {
-                            AlertsSection(alertData)
+                            AlertsSection(
+                                alerts = alertData,
+                                onAcknowledgeExpiry = { viewModel.acknowledgeAllExpiry() },
+                                onAcknowledgeStock = { viewModel.acknowledgeAllStock() },
+                            )
                         }
                     }
 
@@ -242,7 +246,11 @@ fun StatCard(
 }
 
 @Composable
-fun AlertsSection(alerts: AlertData) {
+fun AlertsSection(
+    alerts: AlertData,
+    onAcknowledgeExpiry: () -> Unit,
+    onAcknowledgeStock: () -> Unit,
+) {
     Text("⚠️ Peringatan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
     if (alerts.expiredBatches.isNotEmpty()) {
@@ -261,12 +269,21 @@ fun AlertsSection(alerts: AlertData) {
         )
     }
 
+    if (alerts.expiredBatches.isNotEmpty() || alerts.expiringBatches.isNotEmpty()) {
+        TextButton(onClick = onAcknowledgeExpiry) {
+            Text("Tandai alert kadaluarsa selesai")
+        }
+    }
+
     if (alerts.lowStockProducts.isNotEmpty()) {
         AlertCard(
             title = "Stok Hampir Habis (${alerts.lowStockProducts.size})",
             color = Info,
             items = alerts.lowStockProducts.map { "${it.name} - Stok: ${it.currentStock}" }
         )
+        TextButton(onClick = onAcknowledgeStock) {
+            Text("Tandai alert stok selesai")
+        }
     }
 }
 

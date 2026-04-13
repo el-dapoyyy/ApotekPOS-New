@@ -16,6 +16,8 @@ import com.mediakasir.apotekpos.data.model.blocksAppUse
 import com.mediakasir.apotekpos.data.model.blocksLogin
 import com.mediakasir.apotekpos.data.network.ApiService
 import com.mediakasir.apotekpos.data.repository.SessionRepository
+import com.mediakasir.apotekpos.util.parseLoginError
+import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
@@ -32,6 +34,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val api: ApiService,
     private val session: SessionRepository,
+    private val gson: Gson,
     @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
@@ -116,8 +119,7 @@ class MainViewModel @Inject constructor(
                 val response = api.login(buildPasswordLoginRequest(email.trim(), password))
                 applyLoginResponse(response, onSuccess)
             } catch (e: HttpException) {
-                _error.value = e.response()?.errorBody()?.string()?.trim()?.takeIf { it.length in 1..280 }
-                    ?: appContext.getString(R.string.login_error_generic)
+                _error.value = parseLoginError(e, gson)
             } catch (e: Exception) {
                 _error.value = mapNetworkError(e)
             } finally {
@@ -134,7 +136,11 @@ class MainViewModel @Inject constructor(
                 val response = api.loginWithGoogle(buildGoogleLoginRequest(idToken))
                 applyLoginResponse(response, onSuccess)
             } catch (e: HttpException) {
-                _error.value = appContext.getString(R.string.error_login_google_http, e.code())
+                _error.value = when (e.code()) {
+                    401 -> "Akun Google Anda tidak terdaftar. Silakan gunakan email dan password."
+                    403 -> "Akun Anda tidak memiliki akses. Hubungi administrator."
+                    else -> "Gagal login dengan Google. Silakan coba login dengan email dan password."
+                }
             } catch (e: Exception) {
                 _error.value = mapNetworkError(e)
             } finally {
@@ -147,7 +153,13 @@ class MainViewModel @Inject constructor(
         if (response.success) {
             val d = response.data
             if (d.license.blocksLogin()) {
-                _error.value = appContext.getString(R.string.login_license_blocked)
+                val reason = when {
+                    d.license.daysRemaining <= 0 -> "Lisensi Anda sudah kadaluarsa (${d.license.expiredAt}). Silakan memperpanjang lisensi."
+                    d.license.status == "inactive" -> "Lisensi Anda tidak aktif. Hubungi administrator."
+                    d.license.status == "suspended" -> "Lisensi Anda telah disuspend. Hubungi administrator."
+                    else -> "Lisensi Anda tidak valid. Hubungi administrator."
+                }
+                _error.value = reason
                 return
             }
             val b = d.branch
@@ -231,24 +243,37 @@ class MainViewModel @Inject constructor(
     private fun mapNetworkError(e: Throwable): String {
         val msg = e.message.orEmpty()
         val debugBase = if (BuildConfig.DEBUG) {
-            "\n" + appContext.getString(R.string.error_network_debug_base, BuildConfig.BASE_URL)
+            "\n\n🔧 Debug: Server: ${BuildConfig.BASE_URL}"
         } else {
             ""
         }
         return when {
             e is UnknownHostException ->
-                appContext.getString(R.string.error_network_unreachable) + debugBase
+                "Tidak bisa terhubung ke server. Periksa koneksi internet dan alamat server Anda.$debugBase"
             msg.contains("Unable to resolve host", ignoreCase = true) ->
-                appContext.getString(R.string.error_network_unreachable) + debugBase
-            e is SocketTimeoutException -> appContext.getString(R.string.error_network_timeout) + debugBase
+                "Tidak bisa terhubung ke server. Periksa alamat server dan koneksi internet.$debugBase"
+            e is SocketTimeoutException -> 
+                "Server tidak merespons. Periksa koneksi internet atau coba lagi nanti.$debugBase"
             msg.contains("timeout", ignoreCase = true) ->
-                appContext.getString(R.string.error_network_timeout) + debugBase
-            else -> e.message?.takeIf { it.isNotBlank() } ?: appContext.getString(R.string.login_error_generic)
+                "Koneksi terlalu lama. Periksa koneksi internet dan coba lagi.$debugBase"
+            msg.contains("network", ignoreCase = true) ->
+                "Masalah jaringan. Pastikan internet Anda terhubung.$debugBase"
+            else -> e.message?.takeIf { it.isNotBlank() } ?: "Gagal terhubung ke server. Coba lagi nanti."
         }
     }
 
     fun logout() {
         viewModelScope.launch {
+            runCatching { api.logout() }
+            session.clearSession()
+            _user.value = null
+            _license.value = null
+        }
+    }
+
+    fun logoutAllDevices() {
+        viewModelScope.launch {
+            runCatching { api.logoutAll() }
             session.clearSession()
             _user.value = null
             _license.value = null
