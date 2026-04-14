@@ -25,9 +25,20 @@ interface ApiService {
     @POST("auth/logout-all")
     suspend fun logoutAll(): ApiMessageEnvelope
 
-    /** Buka shift / clock-in. Sesuaikan path jika backend berbeda (mis. `pos/shifts/start`). */
-    @POST("auth/shift/start")
+    /** GET shift aktif saat ini dari server. */
+    @GET("pos/shifts/current")
+    suspend fun getCurrentShift(): ShiftStartEnvelope
+
+    /** Buka shift — POST ke backend agar terbaca di web. */
+    @POST("pos/shifts/open")
     suspend fun startShift(@Body body: ShiftStartRequest): ShiftStartEnvelope
+
+    /** Tutup shift di server. */
+    @POST("pos/shifts/{id}/close")
+    suspend fun closeShiftOnServer(
+        @Path("id") id: Int,
+        @Body body: ShiftCloseRequest,
+    ): ShiftCloseEnvelope
 
     // --- POS products (doc §5–7) ---
 

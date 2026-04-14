@@ -114,12 +114,29 @@ data class ActiveShiftInfo(
     @SerializedName("starting_cash") val startingCash: Double,
 )
 
-/** POST buka shift — path backend bisa disesuaikan jika berbeda. */
+/** POST buka shift ke backend. */
 data class ShiftStartRequest(
     @SerializedName("starting_cash") val startingCash: Double,
 )
 
 data class ShiftStartEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: ShiftOpenData? = null,
+)
+
+data class ShiftOpenData(
+    val id: Int,
+    @SerializedName("clock_in") val clockIn: String,
+    @SerializedName("starting_cash") val startingCash: Double,
+)
+
+data class ShiftCloseRequest(
+    @SerializedName("closing_cash") val closingCash: Double,
+    @SerializedName("closing_notes") val closingNotes: String? = null,
+)
+
+data class ShiftCloseEnvelope(
     val success: Boolean = false,
     val message: String? = null,
 )

@@ -29,6 +29,7 @@ import com.mediakasir.apotekpos.data.model.Product
 import com.mediakasir.apotekpos.data.model.Transaction
 import com.mediakasir.apotekpos.data.model.TransactionItem
 import com.mediakasir.apotekpos.data.model.ShiftStartRequest
+import com.mediakasir.apotekpos.data.model.ShiftCloseRequest
 import com.mediakasir.apotekpos.data.model.TransactionSyncRequest
 import com.mediakasir.apotekpos.data.model.DeviceHeaderIds
 import com.mediakasir.apotekpos.data.model.toProduct
@@ -537,8 +538,10 @@ class POSViewModel @Inject constructor(
                 if (networkStatus.isConnected()) {
                     try {
                         val res = api.startShift(ShiftStartRequest(startingCash = cash))
-                        if (res.success == true) {
-                            // Server confirmed shift start
+                        val serverId = res.data?.id
+                        if (res.success == true && serverId != null) {
+                            localShiftDao.markSynced(shiftId, serverId)
+                            _activeShift.value = shift.copy(serverShiftId = serverId)
                         }
                     } catch (_: Exception) {
                         // Server sync failed — shift is saved locally, will sync later
@@ -1155,6 +1158,22 @@ class POSViewModel @Inject constructor(
                     totalNonCashSales = totalNonCashSales,
                     totalTransactions = txCount,
                 )
+
+                // Sync close to server (best-effort)
+                val serverId = shift.serverShiftId
+                if (serverId != null && networkStatus.isConnected()) {
+                    try {
+                        api.closeShiftOnServer(
+                            id = serverId,
+                            body = ShiftCloseRequest(
+                                closingCash = endingCash,
+                                closingNotes = notes.takeIf { it.isNotBlank() },
+                            ),
+                        )
+                    } catch (_: Exception) {
+                        // best-effort — shift sudah ditutup di lokal
+                    }
+                }
 
                 _activeShift.value = null
                 _shiftExpiredWarning.value = false
