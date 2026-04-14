@@ -3,6 +3,8 @@ package com.mediakasir.apotekpos.di
 import android.content.Context
 import androidx.room.Room
 import com.mediakasir.apotekpos.data.local.AppDatabase
+import com.mediakasir.apotekpos.data.local.LocalShiftDao
+import com.mediakasir.apotekpos.data.local.LocalTransactionDao
 import com.mediakasir.apotekpos.data.local.PendingSyncDao
 import com.mediakasir.apotekpos.data.local.ProductCacheDao
 import dagger.Module as DaggerModule
@@ -28,4 +30,10 @@ object DatabaseModule {
 
     @Provides
     fun providePendingSyncDao(db: AppDatabase): PendingSyncDao = db.pendingSyncDao()
+
+    @Provides
+    fun provideLocalTransactionDao(db: AppDatabase): LocalTransactionDao = db.localTransactionDao()
+
+    @Provides
+    fun provideLocalShiftDao(db: AppDatabase): LocalShiftDao = db.localShiftDao()
 }

@@ -97,14 +97,46 @@ fun ApotekTheme(
     )
 }
 
-fun getCategoryColor(category: String): Color = when (category) {
-    "Analgesik" -> Error
-    "Antibiotik" -> Warning
-    "Vitamin" -> Success
-    "Lambung" -> Info
-    "Antihistamin" -> Color(0xFF8B5CF6)
-    "Batuk & Flu" -> Color(0xFFEC4899)
-    "Antiseptik" -> Color(0xFFF59E0B)
-    "Diabetes" -> Color(0xFF06B6D4)
-    else -> TextMuted
+fun getCategoryColor(category: String): Color {
+    val c = category.lowercase()
+    return when {
+        c.contains("keras") -> Color(0xFFEF4444)         // Obat Keras → red
+        c.contains("bebas terbatas") -> Color(0xFFF59E0B) // OBT → amber
+        c.contains("bebas") -> Color(0xFF22C55E)          // Obat Bebas → green
+        c.contains("alat kesehatan") || c.contains("alkes") -> Color(0xFF0EA5E9) // Alkes → sky blue
+        c.contains("antibiotik") -> Warning
+        c.contains("analgesik") || c.contains("pereda") -> Error
+        c.contains("vitamin") || c.contains("suplemen") -> Success
+        c.contains("lambung") || c.contains("pencernaan") -> Info
+        c.contains("antihistamin") -> Color(0xFF8B5CF6)
+        c.contains("batuk") || c.contains("flu") -> Color(0xFFEC4899)
+        c.contains("antiseptik") -> Color(0xFFF59E0B)
+        c.contains("diabetes") -> Color(0xFF06B6D4)
+        c.contains("psikotropika") || c.contains("narkotika") -> Color(0xFF7C3AED)
+        else -> TextMuted
+    }
+}
+
+/** Short badge label for a category (max ~8 chars). */
+fun categoryShortLabel(category: String): String {
+    val c = category.lowercase()
+    return when {
+        c.contains("bebas terbatas") -> "OBT"
+        c.contains("obat keras") || c.contains("keras") -> "Keras"
+        c.contains("obat bebas") || c.contains("bebas") -> "Bebas"
+        c.contains("alat kesehatan") || c.contains("alkes") -> "Alkes"
+        c.contains("antibiotik") -> "Antibio"
+        c.contains("analgesik") -> "Analgesik"
+        c.contains("antihistamin") -> "Histamin"
+        c.contains("suplemen") && c.contains("vitamin") -> "Suplemen"
+        c.contains("suplemen") -> "Suplemen"
+        c.contains("vitamin") -> "Vitamin"
+        c.contains("batuk") -> "Batuk"
+        c.contains("antiseptik") -> "Antisep"
+        c.contains("diabetes") -> "Diabetes"
+        c.contains("lambung") -> "Lambung"
+        c.contains("psikotropika") -> "Psiko"
+        c.contains("narkotika") -> "Nano"
+        else -> category.take(9)
+    }
 }

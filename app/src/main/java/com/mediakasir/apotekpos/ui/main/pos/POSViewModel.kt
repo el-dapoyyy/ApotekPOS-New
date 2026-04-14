@@ -4,12 +4,21 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import com.mediakasir.apotekpos.data.local.LocalPaymentEntity
+import com.mediakasir.apotekpos.data.local.LocalShiftDao
+import com.mediakasir.apotekpos.data.local.LocalShiftEntity
+import com.mediakasir.apotekpos.data.local.LocalTransactionDao
+import com.mediakasir.apotekpos.data.local.LocalTransactionEntity
+import com.mediakasir.apotekpos.data.local.LocalTransactionItemEntity
 import com.mediakasir.apotekpos.data.local.PendingSyncDao
 import com.mediakasir.apotekpos.data.local.PendingSyncEntity
 import com.mediakasir.apotekpos.data.local.ProductCacheDao
 import com.mediakasir.apotekpos.data.local.toCachedEntity
 import com.mediakasir.apotekpos.data.local.toProductModel
+import com.mediakasir.apotekpos.data.sync.ConnectivityObserver
+import com.mediakasir.apotekpos.data.sync.SyncManager
 import com.mediakasir.apotekpos.data.model.PaymentDetail
+import com.mediakasir.apotekpos.data.model.PosCustomerDto
 import com.mediakasir.apotekpos.data.model.PosDiscountDto
 import com.mediakasir.apotekpos.data.model.PosPaymentLineDto
 import com.mediakasir.apotekpos.data.model.PosPromotionDto
@@ -58,11 +67,31 @@ data class PaymentEntry(
     val reference: String = "",
 )
 
+data class ShiftSummaryData(
+    val shiftType: String,
+    val cashierName: String,
+    val branchName: String,
+    val startedAt: String,
+    val endedAt: String,
+    val startingCash: Double,
+    val endingCash: Double,
+    val expectedCash: Double,
+    val difference: Double,
+    val totalSales: Double,
+    val totalCashSales: Double,
+    val totalNonCashSales: Double,
+    val totalTransactions: Int,
+)
+
 @HiltViewModel
 class POSViewModel @Inject constructor(
     private val api: ApiService,
     private val productCacheDao: ProductCacheDao,
     private val pendingSyncDao: PendingSyncDao,
+    private val localTransactionDao: LocalTransactionDao,
+    private val localShiftDao: LocalShiftDao,
+    private val syncManager: SyncManager,
+    private val connectivityObserver: ConnectivityObserver,
     private val gson: Gson,
     private val networkStatus: NetworkStatus,
     private val session: SessionRepository,
@@ -83,6 +112,15 @@ class POSViewModel @Inject constructor(
 
     private val _customerName = MutableStateFlow("Umum")
     val customerName: StateFlow<String> = _customerName.asStateFlow()
+
+    private val _selectedCustomer = MutableStateFlow<PosCustomerDto?>(null)
+    val selectedCustomer: StateFlow<PosCustomerDto?> = _selectedCustomer.asStateFlow()
+
+    private val _customerResults = MutableStateFlow<List<PosCustomerDto>>(emptyList())
+    val customerResults: StateFlow<List<PosCustomerDto>> = _customerResults.asStateFlow()
+
+    private val _customerSearching = MutableStateFlow(false)
+    val customerSearching: StateFlow<Boolean> = _customerSearching.asStateFlow()
 
     private val _discounts = MutableStateFlow<List<PosDiscountDto>>(emptyList())
     val discounts: StateFlow<List<PosDiscountDto>> = _discounts.asStateFlow()
@@ -121,8 +159,38 @@ class POSViewModel @Inject constructor(
     private val _startingShift = MutableStateFlow(false)
     val startingShift: StateFlow<Boolean> = _startingShift.asStateFlow()
 
+    private val _activeShift = MutableStateFlow<LocalShiftEntity?>(null)
+    val activeShift: StateFlow<LocalShiftEntity?> = _activeShift.asStateFlow()
+
+    private val _showCloseShiftDialog = MutableStateFlow(false)
+    val showCloseShiftDialog: StateFlow<Boolean> = _showCloseShiftDialog.asStateFlow()
+
+    private val _closingShift = MutableStateFlow(false)
+    val closingShift: StateFlow<Boolean> = _closingShift.asStateFlow()
+
+    private val _shiftSummary = MutableStateFlow<ShiftSummaryData?>(null)
+    val shiftSummary: StateFlow<ShiftSummaryData?> = _shiftSummary.asStateFlow()
+
+    /** True when the active shift has run past its scheduled end hour. */
+    private val _shiftExpiredWarning = MutableStateFlow(false)
+    val shiftExpiredWarning: StateFlow<Boolean> = _shiftExpiredWarning.asStateFlow()
+
     private val _pendingSyncCount = MutableStateFlow(0)
     val pendingSyncCount: StateFlow<Int> = _pendingSyncCount.asStateFlow()
+
+    /** Errors from failed sync attempts — shown when user taps the pending badge. */
+    private val _syncErrors = MutableStateFlow<List<com.mediakasir.apotekpos.data.local.FailedSyncInfo>>(emptyList())
+    val syncErrors: StateFlow<List<com.mediakasir.apotekpos.data.local.FailedSyncInfo>> = _syncErrors.asStateFlow()
+
+    private val _showSyncErrorDialog = MutableStateFlow(false)
+    val showSyncErrorDialog: StateFlow<Boolean> = _showSyncErrorDialog.asStateFlow()
+
+    private val _isRetryingSync = MutableStateFlow(false)
+    val isRetryingSync: StateFlow<Boolean> = _isRetryingSync.asStateFlow()
+
+    /** Message shown inside the sync dialog after a retry attempt completes. */
+    private val _syncRetryMessage = MutableStateFlow<String?>(null)
+    val syncRetryMessage: StateFlow<String?> = _syncRetryMessage.asStateFlow()
 
     private val _isNetworkConnected = MutableStateFlow(true)
     val isNetworkConnected: StateFlow<Boolean> = _isNetworkConnected.asStateFlow()
@@ -145,13 +213,183 @@ class POSViewModel @Inject constructor(
     private val _shiftDialogError = MutableStateFlow<String?>(null)
     val shiftDialogError: StateFlow<String?> = _shiftDialogError.asStateFlow()
 
+    /** Last branchId used to load products — used for background stock refresh on reconnect. */
+    private var lastBranchId = ""
+
     fun clearShiftDialogError() {
         _shiftDialogError.value = null
     }
 
     init {
+        // ── Startup: rescue any transactions left at "syncing" by a previous crash ──
         viewModelScope.launch {
-            pendingSyncDao.observeCount().collect { _pendingSyncCount.value = it }
+            localTransactionDao.resetStuckSyncing()
+        }
+        viewModelScope.launch {
+            localTransactionDao.observePendingCount().collect { _pendingSyncCount.value = it }
+        }
+        viewModelScope.launch {
+            var wasOffline = false
+            connectivityObserver.isOnline.collect { isOnline ->
+                _isNetworkConnected.value = isOnline
+                if (isOnline && wasOffline) {
+                    // Priority 1: drain pending transactions
+                    OfflineSyncScheduler.enqueueTransactionSync(appContext)
+                    // Priority 2: refresh stock from server in background
+                    val branchId = lastBranchId
+                    if (branchId.isNotBlank()) {
+                        viewModelScope.launch {
+                            backgroundProductSync(branchId)
+                        }
+                    }
+                }
+                wasOffline = !isOnline
+            }
+        }
+        // Periodic shift expiry check — every 5 minutes
+        viewModelScope.launch {
+            while (true) {
+                checkShiftExpiry()
+                kotlinx.coroutines.delay(5 * 60_000L)
+            }
+        }
+        syncManager.startObserving()
+        OfflineSyncScheduler.schedulePeriodicSync(appContext)
+        OfflineSyncScheduler.schedulePeriodicStockSync(appContext)
+    }
+
+    /** Called when user taps the pending-count badge. Loads error details then shows dialog. */
+    fun openSyncErrorDialog() {
+        viewModelScope.launch {
+            _syncRetryMessage.value = null
+            _syncErrors.value = localTransactionDao.getFailedSyncDetails()
+            _showSyncErrorDialog.value = true
+        }
+    }
+
+    fun closeSyncErrorDialog() {
+        _showSyncErrorDialog.value = false
+        _syncRetryMessage.value = null
+    }
+
+    /**
+     * Directly attempt to sync all pending/failed transactions inline (not just queue to WorkManager).
+     * Shows immediate success/failure feedback inside the dialog.
+     */
+    fun retrySync() {
+        viewModelScope.launch {
+            _isRetryingSync.value = true
+            _syncRetryMessage.value = null
+            try {
+                // Reset failed → pending (keep error history via syncAttempts/lastSyncError)
+                localTransactionDao.resetFailedToPending()
+
+                // Attempt direct inline sync for immediate feedback
+                val pending = localTransactionDao.getPendingTransactions()
+                if (pending.isEmpty()) {
+                    _syncRetryMessage.value = "✅ Semua transaksi sudah tersinkron."
+                    _syncErrors.value = emptyList()
+                    return@launch
+                }
+
+                var successCount = 0
+                var failCount = 0
+                var lastError: String? = null
+
+                for (tx in pending) {
+                    try {
+                        localTransactionDao.updateSyncStatus(tx.id, "syncing")
+                        val items = localTransactionDao.getItemsForTransaction(tx.id)
+                        val payments = localTransactionDao.getPaymentsForTransaction(tx.id)
+                        val body = TransactionSyncRequest(
+                            transactions = listOf(
+                                PosTransactionSyncDto(
+                                    localTransactionId = tx.id,
+                                    customerId = tx.customerId,
+                                    prescriptionId = tx.prescriptionId,
+                                    discountId = tx.discountId,
+                                    subtotal = tx.subtotal,
+                                    discountAmount = tx.discountAmount,
+                                    taxAmount = tx.taxAmount,
+                                    tuslaAmount = 0.0,
+                                    embalseAmount = 0.0,
+                                    grandTotal = tx.grandTotal,
+                                    paymentMethod = tx.paymentMethod,
+                                    paymentStatus = tx.paymentStatus,
+                                    notes = tx.notes,
+                                    completedAt = tx.completedAt,
+                                    items = items.map {
+                                        PosTransactionLineDto(
+                                            productId = it.productId,
+                                            batchId = it.batchId,
+                                            quantity = it.quantity,
+                                            unitPrice = it.unitPrice,
+                                            discount = it.discount,
+                                            subtotal = it.subtotal,
+                                            isRacikan = it.isRacikan,
+                                        )
+                                    },
+                                    payments = payments.map {
+                                        PosPaymentLineDto(
+                                            method = it.method,
+                                            amount = it.amount,
+                                            reference = it.reference,
+                                        )
+                                    },
+                                ),
+                            ),
+                        )
+                        val sync = api.syncTransactions(body)
+                        val first = sync.data?.results?.firstOrNull()
+                        if (sync.success == true && first?.success == true && first.serverTransactionId != null) {
+                            localTransactionDao.markSynced(tx.id, first.serverTransactionId, first.invoiceNumber.orEmpty())
+                            successCount++
+                        } else {
+                            val err = first?.message ?: sync.message ?: "Server menolak permintaan"
+                            localTransactionDao.markSyncFailed(tx.id, err)
+                            lastError = err
+                            failCount++
+                        }
+                    } catch (e: Exception) {
+                        val err = e.message ?: e.javaClass.simpleName
+                        localTransactionDao.markSyncFailed(tx.id, err)
+                        lastError = err
+                        failCount++
+                    }
+                }
+
+                // Refresh errors for display
+                _syncErrors.value = localTransactionDao.getFailedSyncDetails()
+
+                _syncRetryMessage.value = when {
+                    failCount == 0 -> "✅ Semua $successCount transaksi berhasil dikirim!"
+                    successCount > 0 -> "⚠️ $successCount berhasil, $failCount gagal\n$lastError"
+                    else -> "❌ Gagal mengirim. Server error: $lastError"
+                }
+            } catch (e: Exception) {
+                _syncRetryMessage.value = "❌ Error: ${e.message}"
+            } finally {
+                _isRetryingSync.value = false
+                // Also enqueue background worker for any remaining items
+                OfflineSyncScheduler.enqueueTransactionSync(appContext)
+            }
+        }
+    }
+
+    /**
+     * Shift end hours (based on creation time rule):
+     *  pagi  (00–14) → expires at 15:00
+     *  sore  (15–21) → expires at 22:00
+     *  malam (22–23) → expires when we enter daytime again (07:00–21:59)
+     */
+    private fun checkShiftExpiry() {
+        val shift = _activeShift.value ?: run { _shiftExpiredWarning.value = false; return }
+        val h = java.time.LocalTime.now().hour
+        _shiftExpiredWarning.value = when (shift.shiftType) {
+            "pagi"  -> h >= 15
+            "sore"  -> h >= 22
+            "malam" -> h in 7..21   // next-day morning/afternoon window
+            else    -> false
         }
     }
 
@@ -174,7 +412,7 @@ class POSViewModel @Inject constructor(
      * POS hanya untuk akun kasir (disamakan dengan web). Non-kasir: alert saja, tanpa logout.
      * Peran diambil dari `auth/me` bila ada, fallback ke [userRole] dari sesi.
      */
-    fun checkActiveShift(userRole: String? = null) {
+    fun checkActiveShift(userRole: String? = null, branchId: String = "", cashierId: String = "") {
         viewModelScope.launch {
             _shiftGateResolved.value = false
             _posKasirCatalogBlocked.value = false
@@ -182,13 +420,36 @@ class POSViewModel @Inject constructor(
             val notKasirMessage =
                 "Halaman POS hanya untuk akun kasir. Untuk bertransaksi di kasir, gunakan akun kasir."
             try {
+                // ── Check local shift first (offline-first) ──
+                val localShift = if (cashierId.isNotEmpty() && branchId.isNotEmpty()) {
+                    localShiftDao.getActiveShift(cashierId, branchId)
+                } else null
+
+                if (localShift != null) {
+                    _activeShift.value = localShift
+                    _shiftBlocking.value = false
+                    // Still check role if online
+                    if (networkStatus.isConnected()) {
+                        checkRoleOnline(userRole, notKasirMessage)
+                    } else {
+                        val sessionRole = userRole?.trim()?.lowercase().orEmpty()
+                        if (sessionRole != "kasir") {
+                            _posKasirCatalogBlocked.value = true
+                            _posKasirAccessDialogText.value = notKasirMessage
+                        }
+                    }
+                    return@launch
+                }
+
+                // ── No local shift — check server ──
                 if (!networkStatus.isConnected()) {
                     val sessionRole = userRole?.trim()?.lowercase().orEmpty()
                     if (sessionRole != "kasir") {
                         _posKasirCatalogBlocked.value = true
                         _posKasirAccessDialogText.value = notKasirMessage
                     }
-                    _shiftBlocking.value = false
+                    // No local shift + offline = must open shift
+                    _shiftBlocking.value = true
                     return@launch
                 }
                 try {
@@ -198,7 +459,7 @@ class POSViewModel @Inject constructor(
                             DeviceHeaderIds.fromMe(data)?.let { session.saveServerUserDeviceRowId(it) }
                         }
                         if (env.success != true) {
-                            _shiftBlocking.value = false
+                            _shiftBlocking.value = true
                             return@withTimeout
                         }
                         val effectiveRole = env.data?.user?.role?.trim()?.lowercase()
@@ -212,10 +473,10 @@ class POSViewModel @Inject constructor(
                         _shiftBlocking.value = env.data?.activeShift == null
                     }
                 } catch (e: TimeoutCancellationException) {
-                    _shiftBlocking.value = false
+                    _shiftBlocking.value = true
                     _error.value = "Pemeriksaan shift habis waktu. Periksa server atau koneksi, lalu buka ulang POS."
                 } catch (e: Exception) {
-                    _shiftBlocking.value = false
+                    _shiftBlocking.value = true
                     _error.value = formatApiThrowable(e, gson)
                 }
             } finally {
@@ -224,7 +485,24 @@ class POSViewModel @Inject constructor(
         }
     }
 
-    fun submitStartingShift(cashInput: String) {
+    private suspend fun checkRoleOnline(userRole: String?, notKasirMessage: String) {
+        try {
+            withTimeout(AUTH_ME_TIMEOUT_MS) {
+                val env = api.authMe()
+                env.data?.let { data ->
+                    DeviceHeaderIds.fromMe(data)?.let { session.saveServerUserDeviceRowId(it) }
+                }
+                val effectiveRole = env.data?.user?.role?.trim()?.lowercase()
+                    ?: userRole?.trim()?.lowercase().orEmpty()
+                if (effectiveRole != "kasir") {
+                    _posKasirCatalogBlocked.value = true
+                    _posKasirAccessDialogText.value = notKasirMessage
+                }
+            }
+        } catch (_: Exception) { /* best-effort role check */ }
+    }
+
+    fun submitStartingShift(cashInput: String, branchId: String = "", cashierId: String = "", cashierName: String = "") {
         viewModelScope.launch {
             _shiftDialogError.value = null
             val cash = parseMoneyInputToDouble(cashInput)
@@ -234,26 +512,40 @@ class POSViewModel @Inject constructor(
             }
             _startingShift.value = true
             try {
-                // BYPASS SEMENTARA: Karena Backend belum memiliki endpoint (error 404), 
-                // kita meng-komen sementara pemanggilan ke API server agar UI tidak berhenti, 
-                // dan aplikasi Anda segera mematikan gembok untuk langsung masuk Dasbor.
-                
-                /*
-                withTimeout(AUTH_ME_TIMEOUT_MS) {
-                    val res = api.startShift(ShiftStartRequest(startingCash = cash))
-                    if (res.success != true) {
-                        throw IllegalStateException(res.message ?: "Gagal buka shift")
-                    }
-                    _shiftBlocking.value = false
+                // Determine shift type from current time
+                val hour = java.time.LocalTime.now().hour
+                val shiftType = when {
+                    hour < 15 -> "pagi"
+                    hour < 22 -> "sore"
+                    else -> "malam"
                 }
-                */
-                
-                // Matikan switch gembok secara otomatis (paksa lulus)
+
+                val shiftId = UUID.randomUUID().toString()
+                val shift = LocalShiftEntity(
+                    id = shiftId,
+                    cashierId = cashierId,
+                    cashierName = cashierName,
+                    branchId = branchId,
+                    shiftType = shiftType,
+                    startedAt = Instant.now().toString(),
+                    startingCash = cash,
+                )
+                localShiftDao.insert(shift)
+                _activeShift.value = shift
+
+                // Try server sync in background (best-effort)
+                if (networkStatus.isConnected()) {
+                    try {
+                        val res = api.startShift(ShiftStartRequest(startingCash = cash))
+                        if (res.success == true) {
+                            // Server confirmed shift start
+                        }
+                    } catch (_: Exception) {
+                        // Server sync failed — shift is saved locally, will sync later
+                    }
+                }
+
                 _shiftBlocking.value = false
-            } catch (e: TimeoutCancellationException) {
-                val msg = "Buka shift habis waktu. Coba lagi."
-                _shiftDialogError.value = msg
-                _error.value = msg
             } catch (e: Exception) {
                 val msg = formatApiThrowable(e, gson)
                 _shiftDialogError.value = msg
@@ -265,11 +557,13 @@ class POSViewModel @Inject constructor(
     }
 
     fun loadProducts(branchId: String, search: String = "") {
+        if (branchId.isNotBlank()) lastBranchId = branchId
         viewModelScope.launch {
             _isNetworkConnected.value = networkStatus.isConnected()
             _isLoadingProducts.value = true
             _productsLoadError.value = null
             try {
+                // ── Phase 1: Load from cache immediately (zero latency) ──
                 val q = search.trim()
                 if (q.length >= 2) {
                     val cached = productCacheDao.search(branchId, q).map { it.toProductModel() }
@@ -286,11 +580,18 @@ class POSViewModel @Inject constructor(
                     }
                     return@launch
                 }
-                _products.value = fetchAndCacheProducts(branchId, search)
+                // ── Phase 2: Background incremental sync ──
+                // For search queries, fetch from server directly
+                if (q.length >= 2) {
+                    _products.value = fetchAndCacheProducts(branchId, search)
+                } else {
+                    // Incremental sync: only fetch products updated since last sync
+                    backgroundProductSync(branchId)
+                }
                 if (_discounts.value.isEmpty() || _promotions.value.isEmpty()) {
                     loadMarketingData()
                 }
-                checkAlerts() // Update alert badge
+                checkAlerts()
             } catch (e: Exception) {
                 val msg = formatApiThrowable(e, gson)
                 _productsLoadError.value = msg
@@ -300,6 +601,55 @@ class POSViewModel @Inject constructor(
             } finally {
                 _isLoadingProducts.value = false
             }
+        }
+    }
+
+    private suspend fun backgroundProductSync(branchId: String) {
+        val lastSync = productCacheDao.getLastSyncTime(branchId)
+        val updatedSince = lastSync?.let {
+            java.time.Instant.ofEpochMilli(it).atOffset(java.time.ZoneOffset.UTC)
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+        }
+        val now = System.currentTimeMillis()
+        var page = 1
+        val maxPages = 25
+        var anyUpdated = false
+
+        while (page <= maxPages) {
+            val env = api.syncProducts(page = page, perPage = 100, updatedSince = updatedSince)
+            if (env.success != true) break
+            val payload = env.data ?: break
+            val products = payload.products
+            if (products.isNotEmpty()) {
+                productCacheDao.insertAll(products.map { it.toCachedEntity(branchId, now) })
+                anyUpdated = true
+            }
+            val p = payload.pagination
+            val hasMore = p?.hasMore == true ||
+                ((p?.currentPage ?: page) < (p?.totalPages ?: 0))
+            if (!hasMore) break
+            page++
+        }
+
+        if (anyUpdated) {
+            // Re-apply pending local transaction deductions so products sold but not yet synced
+            // are not shown with the old (higher) server stock.
+            applyPendingDeductionsToCache(branchId)
+            val refreshed = productCacheDao.getAll(branchId).map { it.toProductModel() }
+            if (refreshed.isNotEmpty()) _products.value = refreshed
+        }
+    }
+
+    /**
+     * After writing server stock data to cache, re-subtract the quantities from any local
+     * transactions that have not yet been confirmed by the server. This prevents "phantom stock"
+     * where a just-sold product reappears as available because the server hasn't processed
+     * the transaction yet.
+     */
+    private suspend fun applyPendingDeductionsToCache(branchId: String) {
+        val deductions = localTransactionDao.getPendingDeductionsPerProduct()
+        for (d in deductions) {
+            productCacheDao.deductStock(d.productId.toString(), d.totalQty)
         }
     }
 
@@ -425,6 +775,22 @@ class POSViewModel @Inject constructor(
         _customerName.value = name
     }
 
+    fun setSelectedCustomer(customer: PosCustomerDto?) {
+        _selectedCustomer.value = customer
+        _customerName.value = customer?.name ?: "Umum"
+    }
+
+    fun searchCustomers(query: String) {
+        viewModelScope.launch {
+            _customerSearching.value = true
+            runCatching {
+                val env = api.listCustomers(search = query.takeIf { it.isNotBlank() }, perPage = 20)
+                _customerResults.value = env.data?.customers.orEmpty()
+            }
+            _customerSearching.value = false
+        }
+    }
+
     fun addPayment() {
         _payments.value = _payments.value + PaymentEntry(method = "Transfer")
     }
@@ -484,6 +850,16 @@ class POSViewModel @Inject constructor(
         addPayment(PaymentEntry(method = "Tunai", amount = normalized))
     }
 
+    fun clearCashAmount() {
+        val existingIndex = _payments.value.indexOfFirst { it.method.equals("Tunai", ignoreCase = true) }
+        if (existingIndex >= 0) {
+            val current = _payments.value[existingIndex]
+            _payments.value = _payments.value.toMutableList().apply {
+                set(existingIndex, current.copy(amount = ""))
+            }
+        }
+    }
+
     fun getSubtotal(): Double = _cart.value.sumOf { it.product.sellPrice * it.qty }
     fun getDiscountAmt(): Double = _discount.value.toDoubleOrNull() ?: 0.0
     fun getTotal(): Double = maxOf(0.0, getSubtotal() - getDiscountAmt())
@@ -521,133 +897,105 @@ class POSViewModel @Inject constructor(
                 val paymentMethod = if (paymentLines.size > 1) "split" else paymentLines.first().method
 
                 val cartSnapshot = _cart.value
-                val lines = cartSnapshot.map { ci ->
-                    val pid = ci.product.id.toIntOrNull()
-                        ?: throw IllegalStateException("ID produk tidak valid: ${ci.product.id}")
-                    PosTransactionLineDto(
-                        productId = pid,
-                        batchId = null,
-                        quantity = ci.qty.toDouble(),
-                        unitPrice = ci.product.sellPrice,
-                        discount = 0.0,
-                        subtotal = ci.product.sellPrice * ci.qty,
-                        isRacikan = false,
-                    )
-                }
                 val subtotal = getSubtotal()
                 val disc = getDiscountAmt()
                 val grand = getTotal()
                 val localId = UUID.randomUUID().toString()
-                val body = TransactionSyncRequest(
-                    transactions = listOf(
-                        PosTransactionSyncDto(
-                            localTransactionId = localId,
-                            customerId = null,
-                            prescriptionId = null,
-                            discountId = _selectedDiscountId.value,
-                            subtotal = subtotal,
-                            discountAmount = disc,
-                            taxAmount = 0.0,
-                            tuslaAmount = 0.0,
-                            embalseAmount = 0.0,
-                            grandTotal = grand,
-                            paymentMethod = paymentMethod,
-                            paymentStatus = "paid",
-                            notes = null,
-                            completedAt = Instant.now().toString(),
-                            items = lines,
-                            payments = paymentLines,
-                        ),
-                    ),
+                val now = Instant.now().toString()
+
+                // ── 1. Save to Room FIRST (offline-first) ──
+                val localTx = LocalTransactionEntity(
+                    id = localId,
+                    branchId = branchId,
+                    cashierId = cashierId,
+                    cashierName = cashierName,
+                    branchName = branchName,
+                    shiftId = _activeShift.value?.id,
+                    customerId = null,
+                    customerName = _customerName.value,
+                    discountId = _selectedDiscountId.value,
+                    discountLabel = _selectedDiscountLabel.value,
+                    subtotal = subtotal,
+                    discountAmount = disc,
+                    grandTotal = grand,
+                    paymentMethod = paymentMethod,
+                    completedAt = now,
                 )
-                try {
-                    val sync = api.syncTransactions(body)
-                    if (sync.success != true) throw IllegalStateException(sync.message ?: "Sinkron transaksi gagal")
-                    val first = sync.data?.results?.firstOrNull()
-                        ?: throw IllegalStateException("Server tidak mengembalikan hasil transaksi")
-                    if (first.success != true) {
-                        throw IllegalStateException(first.message ?: "Transaksi ditolak server")
-                    }
-                    val itemsUi = cartSnapshot.map {
-                        val sub = it.product.sellPrice * it.qty
-                        TransactionItem(
-                            productId = it.product.id,
-                            productName = it.product.name,
-                            qty = it.qty,
-                            unit = it.product.unit,
-                            sellPrice = it.product.sellPrice,
-                            subtotal = sub,
-                        )
-                    }
-                    val payUi = paymentLines.map {
-                        PaymentDetail(method = it.method, amount = it.amount, reference = it.reference.orEmpty())
-                    }
-                    _receipt.value = Transaction(
-                        id = first.serverTransactionId?.toString().orEmpty(),
-                        transactionNumber = first.invoiceNumber.orEmpty(),
-                        branchId = branchId,
-                        branchName = branchName,
-                        cashierName = cashierName,
-                        items = itemsUi,
-                        subtotal = subtotal,
-                        discount = disc,
-                        totalAmount = grand,
-                        paymentDetails = payUi,
-                        totalPaid = paid,
-                        change = getChange().coerceAtLeast(0.0),
-                        notes = "",
-                        createdAt = Instant.now().toString(),
-                        isPendingSync = false,
+                val localItems = cartSnapshot.map { ci ->
+                    val pid = ci.product.id.toIntOrNull()
+                        ?: throw IllegalStateException("ID produk tidak valid: ${ci.product.id}")
+                    LocalTransactionItemEntity(
+                        transactionId = localId,
+                        productId = pid,
+                        productName = ci.product.name,
+                        quantity = ci.qty.toDouble(),
+                        unitPrice = ci.product.sellPrice,
+                        subtotal = ci.product.sellPrice * ci.qty,
+                        unit = ci.product.unit,
                     )
-                    clearCart()
-                    loadProducts(branchId)
-                } catch (e: Exception) {
-                    if (!networkStatus.isConnected() || e.isLikelyNetworkFailure()) {
-                        pendingSyncDao.insert(
-                            PendingSyncEntity(
-                                id = localId,
-                                type = SYNC_TYPE_TX,
-                                payloadJson = gson.toJson(body),
-                                createdAtEpochMs = System.currentTimeMillis(),
-                            ),
-                        )
-                        OfflineSyncScheduler.enqueueTransactionSync(appContext)
-                        val itemsUi = cartSnapshot.map {
-                            val sub = it.product.sellPrice * it.qty
-                            TransactionItem(
-                                productId = it.product.id,
-                                productName = it.product.name,
-                                qty = it.qty,
-                                unit = it.product.unit,
-                                sellPrice = it.product.sellPrice,
-                                subtotal = sub,
-                            )
-                        }
-                        val payUi = paymentLines.map {
-                            PaymentDetail(method = it.method, amount = it.amount, reference = it.reference.orEmpty())
-                        }
-                        _receipt.value = Transaction(
-                            id = localId,
-                            transactionNumber = "ANTRE-${localId.take(8).uppercase()}",
-                            branchId = branchId,
-                            branchName = branchName,
-                            cashierName = cashierName,
-                            items = itemsUi,
-                            subtotal = subtotal,
-                            discount = disc,
-                            totalAmount = grand,
-                            paymentDetails = payUi,
-                            totalPaid = paid,
-                            change = getChange().coerceAtLeast(0.0),
-                            notes = "Menunggu sinkron ke server",
-                            createdAt = Instant.now().toString(),
-                            isPendingSync = true,
-                        )
-                        clearCart()
-                    } else {
-                        throw e
-                    }
                 }
+                val localPayments = paymentLines.map {
+                    LocalPaymentEntity(
+                        transactionId = localId,
+                        method = it.method,
+                        amount = it.amount,
+                        reference = it.reference,
+                    )
+                }
+                localTransactionDao.insertFull(localTx, localItems, localPayments)
+
+                // ── 2. Deduct local stock ──
+                for (ci in cartSnapshot) {
+                    productCacheDao.deductStock(ci.product.id, ci.qty)
+                }
+
+                // ── 3. Show receipt immediately from local data ──
+                val itemsUi = cartSnapshot.map {
+                    val sub = it.product.sellPrice * it.qty
+                    TransactionItem(
+                        productId = it.product.id,
+                        productName = it.product.name,
+                        qty = it.qty,
+                        unit = it.product.unit,
+                        sellPrice = it.product.sellPrice,
+                        subtotal = sub,
+                    )
+                }
+                val payUi = paymentLines.map {
+                    PaymentDetail(method = it.method, amount = it.amount, reference = it.reference.orEmpty())
+                }
+                _receipt.value = Transaction(
+                    id = localId,
+                    transactionNumber = "LOCAL-${localId.take(8).uppercase()}",
+                    branchId = branchId,
+                    branchName = branchName,
+                    cashierName = cashierName,
+                    items = itemsUi,
+                    subtotal = subtotal,
+                    discount = disc,
+                    totalAmount = grand,
+                    paymentDetails = payUi,
+                    totalPaid = paid,
+                    change = getChange().coerceAtLeast(0.0),
+                    notes = "",
+                    createdAt = now,
+                    isPendingSync = true,
+                )
+                clearCart()
+
+                // ── 4. Queue background sync ──
+                OfflineSyncScheduler.enqueueTransactionSync(appContext)
+
+                // ── 5. Try immediate sync if online (best-effort, non-blocking for receipt) ──
+                if (networkStatus.isConnected()) {
+                    tryImmediateSync(localId, localTx, localItems, paymentLines, branchId)
+                }
+
+                // ── 6. Refresh product list from LOCAL cache only ──
+                // Do NOT fetch from server here: the transaction may not be synced yet, so the
+                // server would return the pre-sale stock and overwrite our correct local deductions.
+                val refreshed = productCacheDao.getAll(branchId).map { it.toProductModel() }
+                if (refreshed.isNotEmpty()) _products.value = refreshed
             } catch (e: Exception) {
                 _error.value = formatApiThrowable(e, gson)
             } finally {
@@ -656,15 +1004,167 @@ class POSViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Best-effort immediate sync after local save.
+     * If it fails, the background worker will retry later — receipt is already shown.
+     */
+    private suspend fun tryImmediateSync(
+        localId: String,
+        localTx: LocalTransactionEntity,
+        items: List<LocalTransactionItemEntity>,
+        paymentLines: List<PosPaymentLineDto>,
+        branchId: String,
+    ) {
+        try {
+            localTransactionDao.updateSyncStatus(localId, "syncing")
+            val lines = items.map { item ->
+                PosTransactionLineDto(
+                    productId = item.productId,
+                    batchId = item.batchId,
+                    quantity = item.quantity,
+                    unitPrice = item.unitPrice,
+                    discount = item.discount,
+                    subtotal = item.subtotal,
+                    isRacikan = item.isRacikan,
+                )
+            }
+            val body = TransactionSyncRequest(
+                transactions = listOf(
+                    PosTransactionSyncDto(
+                        localTransactionId = localId,
+                        customerId = localTx.customerId,
+                        prescriptionId = localTx.prescriptionId,
+                        discountId = localTx.discountId,
+                        subtotal = localTx.subtotal,
+                        discountAmount = localTx.discountAmount,
+                        taxAmount = localTx.taxAmount,
+                        tuslaAmount = 0.0,
+                        embalseAmount = 0.0,
+                        grandTotal = localTx.grandTotal,
+                        paymentMethod = localTx.paymentMethod,
+                        paymentStatus = localTx.paymentStatus,
+                        notes = localTx.notes,
+                        completedAt = localTx.completedAt,
+                        items = lines,
+                        payments = paymentLines,
+                    ),
+                ),
+            )
+            val sync = api.syncTransactions(body)
+            val first = sync.data?.results?.firstOrNull()
+            if (sync.success == true && first?.success == true && first.serverTransactionId != null) {
+                localTransactionDao.markSynced(localId, first.serverTransactionId, first.invoiceNumber.orEmpty())
+                // Update receipt with server invoice number
+                _receipt.value = _receipt.value?.copy(
+                    transactionNumber = first.invoiceNumber.orEmpty(),
+                    isPendingSync = false,
+                    notes = "",
+                )
+            } else {
+                localTransactionDao.updateSyncStatus(localId, "pending")
+            }
+        } catch (_: Exception) {
+            // Sync failed — keep as pending, worker will retry
+            localTransactionDao.updateSyncStatus(localId, "pending")
+        }
+    }
+
     private fun mapPaymentMethodLabel(label: String): String = when (label.trim().lowercase()) {
-        "tunai" -> "cash"
+        "tunai", "cash" -> "cash"
         "transfer" -> "transfer"
-        "qris", "qr" -> "ewallet"
-        "debit", "kredit", "kartu" -> "card"
-        "e-wallet", "ewallet", "e wallet" -> "ewallet"
-        else -> when {
-            label.equals("cash", true) -> "cash"
-            else -> label.lowercase().replace(" ", "_").ifBlank { "cash" }
+        "qris", "qr", "e-wallet", "ewallet", "e wallet" -> "qris"
+        "debit" -> "debit"
+        "kredit", "credit" -> "credit"
+        "kartu", "card" -> "debit"
+        "split" -> "split"
+        else -> "cash"
+    }
+
+    // ── Shift Close Logic ──
+
+    fun requestCloseShift() {
+        _showCloseShiftDialog.value = true
+    }
+
+    fun dismissCloseShiftDialog() {
+        _showCloseShiftDialog.value = false
+    }
+
+    fun dismissShiftSummary() {
+        _shiftSummary.value = null
+    }
+
+    fun closeShift(endingCashInput: String, notes: String = "", branchName: String = "") {
+        viewModelScope.launch {
+            _closingShift.value = true
+            _shiftDialogError.value = null
+            try {
+                val endingCash = parseMoneyInputToDouble(endingCashInput)
+                if (endingCash == null || endingCash < 0) {
+                    _shiftDialogError.value = "Masukkan nominal kas akhir."
+                    return@launch
+                }
+                val shift = _activeShift.value ?: run {
+                    _shiftDialogError.value = "Tidak ada shift aktif."
+                    return@launch
+                }
+
+                // Calculate shift summary from local transactions
+                val totalSales = localTransactionDao.getTotalSalesForShift(shift.id)
+                val txCount = localTransactionDao.getTransactionCountForShift(shift.id)
+                val transactions = localTransactionDao.getTransactionsForShift(shift.id)
+
+                // Calculate cash vs non-cash breakdown
+                var totalCashSales = 0.0
+                var totalNonCashSales = 0.0
+                for (tx in transactions) {
+                    if (tx.paymentMethod == "cash") {
+                        totalCashSales += tx.grandTotal
+                    } else {
+                        totalNonCashSales += tx.grandTotal
+                    }
+                }
+
+                val expectedCash = shift.startingCash + totalCashSales
+                val now = Instant.now().toString()
+
+                localShiftDao.closeShift(
+                    shiftId = shift.id,
+                    endedAt = now,
+                    endingCash = endingCash,
+                    expectedCash = expectedCash,
+                    totalSales = totalSales,
+                    totalCashSales = totalCashSales,
+                    totalNonCashSales = totalNonCashSales,
+                    totalTransactions = txCount,
+                    notes = notes.takeIf { it.isNotBlank() },
+                )
+
+                _shiftSummary.value = ShiftSummaryData(
+                    shiftType = shift.shiftType,
+                    cashierName = shift.cashierName,
+                    branchName = branchName,
+                    startedAt = shift.startedAt,
+                    endedAt = now,
+                    startingCash = shift.startingCash,
+                    endingCash = endingCash,
+                    expectedCash = expectedCash,
+                    difference = endingCash - expectedCash,
+                    totalSales = totalSales,
+                    totalCashSales = totalCashSales,
+                    totalNonCashSales = totalNonCashSales,
+                    totalTransactions = txCount,
+                )
+
+                _activeShift.value = null
+                _shiftExpiredWarning.value = false
+                _showCloseShiftDialog.value = false
+                _shiftBlocking.value = true // Require new shift to continue
+            } catch (e: Exception) {
+                _shiftDialogError.value = formatApiThrowable(e, gson)
+            } finally {
+                _closingShift.value = false
+            }
         }
     }
 
@@ -675,6 +1175,8 @@ class POSViewModel @Inject constructor(
         _selectedDiscountId.value = null
         _selectedDiscountLabel.value = null
         _customerName.value = "Umum"
+        _selectedCustomer.value = null
+        _customerResults.value = emptyList()
     }
 
     fun dismissReceipt() {

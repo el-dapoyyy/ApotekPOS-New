@@ -1,5 +1,6 @@
 package com.mediakasir.apotekpos.ui.main.pos
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
@@ -83,9 +84,11 @@ import com.mediakasir.apotekpos.data.model.UserInfo
 import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.effectiveBranchName
 import com.mediakasir.apotekpos.ui.theme.*
+import com.mediakasir.apotekpos.util.ThermalPrinterManager
 import com.mediakasir.apotekpos.utils.formatDateTime
 import com.mediakasir.apotekpos.utils.formatDigitsAsIndonesianNumber
 import com.mediakasir.apotekpos.utils.formatIDR
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,6 +104,7 @@ fun POSScreen(
     val discounts by viewModel.discounts.collectAsState()
     val promotions by viewModel.promotions.collectAsState()
     val selectedDiscountLabel by viewModel.selectedDiscountLabel.collectAsState()
+    val selectedDiscountId by viewModel.selectedDiscountId.collectAsState()
     val isLoading by viewModel.isLoadingProducts.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
     val receipt by viewModel.receipt.collectAsState()
@@ -110,7 +114,16 @@ fun POSScreen(
     val shiftBlocking by viewModel.shiftBlocking.collectAsState()
     val startingShift by viewModel.startingShift.collectAsState()
     val shiftDialogError by viewModel.shiftDialogError.collectAsState()
+    val activeShift by viewModel.activeShift.collectAsState()
+    val showCloseShiftDialog by viewModel.showCloseShiftDialog.collectAsState()
+    val closingShift by viewModel.closingShift.collectAsState()
+    val shiftSummary by viewModel.shiftSummary.collectAsState()
+    val shiftExpiredWarning by viewModel.shiftExpiredWarning.collectAsState()
     val pendingOut by viewModel.pendingSyncCount.collectAsState()
+    val syncErrors by viewModel.syncErrors.collectAsState()
+    val showSyncErrorDialog by viewModel.showSyncErrorDialog.collectAsState()
+    val isRetryingSync by viewModel.isRetryingSync.collectAsState()
+    val syncRetryMessage by viewModel.syncRetryMessage.collectAsState()
     val alertCount by viewModel.alertCount.collectAsState()
     val netOk by viewModel.isNetworkConnected.collectAsState()
     val posKasirCatalogBlocked by viewModel.posKasirCatalogBlocked.collectAsState()
@@ -135,7 +148,7 @@ fun POSScreen(
 
     LaunchedEffect(user?.userId, branchId) {
         if (user != null) {
-            viewModel.checkActiveShift(userRole = user.role)
+            viewModel.checkActiveShift(userRole = user.role, branchId = branchId, cashierId = user.userId)
         }
     }
 
@@ -152,6 +165,8 @@ fun POSScreen(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(toastMsg) {
         toastMsg?.let {
             snackbarHostState.showSnackbar(it)
@@ -282,12 +297,30 @@ fun POSScreen(
                                     Surface(
                                         color = Info.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(20.dp),
+                                        onClick = { viewModel.openSyncErrorDialog() },
                                     ) {
                                         Text(
                                             "$pendingOut antre",
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                             color = Info,
                                             fontSize = 11.sp,
+                                        )
+                                    }
+                                }
+
+                                // Active shift indicator + close button
+                                if (activeShift != null) {
+                                    Surface(
+                                        color = Success.copy(alpha = 0.12f),
+                                        shape = RoundedCornerShape(20.dp),
+                                        onClick = { viewModel.requestCloseShift() },
+                                    ) {
+                                        Text(
+                                            "Shift ${activeShift?.shiftType?.replaceFirstChar { it.uppercase() }}",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            color = Success,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
                                         )
                                     }
                                 }
@@ -359,6 +392,33 @@ fun POSScreen(
                     /*  MAIN CONTENT                                            */
                     /* ══════════════════════════════════════════════════════════ */
 
+                    // Shift expiry warning banner
+                    if (shiftExpiredWarning && activeShift != null) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            color = Error.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(10.dp),
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    "⚠️ Waktu shift telah habis. Harap tutup shift dan serahkan ke kasir berikutnya.",
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 13.sp,
+                                    color = Error,
+                                )
+                                TextButton(onClick = { viewModel.requestCloseShift() }) {
+                                    Text("Tutup Shift", color = Error, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
                     if (productsLoadError != null && products.isNotEmpty()) {
                         Surface(
                             modifier = Modifier
@@ -415,18 +475,21 @@ fun POSScreen(
                         }
 
                         /* ─── WIDE LAYOUT (tablet) ─── */
-                        wide -> Row(
-                            Modifier
+                        wide -> Surface(
+                            modifier = Modifier
                                 .weight(1f)
-                                .fillMaxWidth()
-                                .padding(horizontal = 0.dp, vertical = 0.dp)
+                                .fillMaxWidth(),
+                            color = Color.White,
                         ) {
-                            // Left: Cart items sidebar (wide, scrollable)
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                            // Left: Cart items sidebar (docked)
                             Surface(
                                 modifier = Modifier
                                     .weight(0.22f)
                                     .fillMaxHeight(),
-                                color = Color.White,
+                                color = Color(0xFFF8FAFC),
                                 shadowElevation = 0.dp,
                                 shape = RoundedCornerShape(0.dp),
                             ) {
@@ -509,11 +572,26 @@ fun POSScreen(
                                         }
                                     }
                                     
-                                    if (cart.isNotEmpty()) {
-                                        Spacer(Modifier.height(8.dp))
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
                                         HorizontalDivider(modifier = Modifier.fillMaxWidth())
-                                        Spacer(Modifier.height(6.dp))
-                                        TextButton(onClick = { viewModel.clearCart() }, modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text("Subtotal", fontSize = 12.sp, color = TextSecondary)
+                                            Text(formatIDR(viewModel.getSubtotal()), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        }
+                                        TextButton(
+                                            onClick = { viewModel.clearCart() },
+                                            enabled = cart.isNotEmpty(),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
                                             Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(14.dp))
                                             Spacer(Modifier.width(4.dp))
                                             Text("Kosongkan", color = Error, fontSize = 11.sp)
@@ -521,6 +599,8 @@ fun POSScreen(
                                     }
                                 }
                             }
+
+                            VerticalDivider(color = Color(0xFFE5E7EB), modifier = Modifier.fillMaxHeight())
 
                             // Center: product catalog
                             Column(
@@ -586,12 +666,14 @@ fun POSScreen(
                                 }
                             }
 
+                            VerticalDivider(color = Color(0xFFE5E7EB), modifier = Modifier.fillMaxHeight())
+
                             // Right: Payment panel with quick buttons
                             Surface(
                                 modifier = Modifier
                                     .weight(0.25f)
                                     .fillMaxHeight(),
-                                color = Color(0xFFF9FAFB),
+                                color = Color(0xFFF8FAFC),
                                 shadowElevation = 0.dp,
                                 shape = RoundedCornerShape(0.dp),
                             ) {
@@ -599,10 +681,14 @@ fun POSScreen(
                                     cart = cart,
                                     payments = payments,
                                     discountLabel = selectedDiscountLabel,
+                                    discounts = discounts,
+                                    promotions = promotions,
+                                    selectedDiscountId = selectedDiscountId,
                                     viewModel = viewModel,
                                     onCheckout = { doCheckout() },
                                     isProcessing = isProcessing,
                                 )
+                            }
                             }
                         }
 
@@ -686,11 +772,59 @@ fun POSScreen(
                         isLoading = startingShift,
                         errorMessage = shiftDialogError,
                         onClearError = { viewModel.clearShiftDialogError() },
-                        onSubmit = { viewModel.submitStartingShift(it) },
+                        onSubmit = { viewModel.submitStartingShift(it, branchId = branchId, cashierId = user.userId, cashierName = user.name) },
+                    )
+                }
+                if (showCloseShiftDialog) {
+                    CloseShiftDialog(
+                        isLoading = closingShift,
+                        errorMessage = shiftDialogError,
+                        onClearError = { viewModel.clearShiftDialogError() },
+                        onDismiss = { viewModel.dismissCloseShiftDialog() },
+                        onSubmit = { cash, notes -> viewModel.closeShift(cash, notes, branchName) },
+                    )
+                }
+                shiftSummary?.let { summary ->
+                    ShiftSummaryDialog(
+                        summary = summary,
+                        onDismiss = { viewModel.dismissShiftSummary() },
+                        onPrint = { device ->
+                            val report = ThermalPrinterManager.ShiftReportData(
+                                pharmacyName = license?.pharmacyName ?: "Apotek",
+                                shiftType = summary.shiftType,
+                                cashierName = summary.cashierName,
+                                branchName = summary.branchName,
+                                startedAt = summary.startedAt,
+                                endedAt = summary.endedAt,
+                                startingCash = summary.startingCash,
+                                endingCash = summary.endingCash,
+                                expectedCash = summary.expectedCash,
+                                difference = summary.difference,
+                                totalSales = summary.totalSales,
+                                totalCashSales = summary.totalCashSales,
+                                totalNonCashSales = summary.totalNonCashSales,
+                                totalTransactions = summary.totalTransactions,
+                            )
+                            coroutineScope.launch {
+                                ThermalPrinterManager.printShiftReport(context, device, report)
+                            }
+                        },
                     )
                 }
             }
         }
+    }
+
+    if (showSyncErrorDialog) {
+        SyncErrorDialog(
+            pendingCount = pendingOut,
+            errors = syncErrors,
+            isRetrying = isRetryingSync,
+            netOk = netOk,
+            retryMessage = syncRetryMessage,
+            onRetry = { viewModel.retrySync() },
+            onDismiss = { viewModel.closeSyncErrorDialog() },
+        )
     }
 
     posKasirAccessDialogText?.let { msg ->
@@ -803,6 +937,482 @@ private fun OpenShiftGateDialog(
 }
 
 @Composable
+private fun CloseShiftDialog(
+    isLoading: Boolean,
+    errorMessage: String?,
+    onClearError: () -> Unit,
+    onDismiss: () -> Unit,
+    onSubmit: (String, String) -> Unit,
+) {
+    var digits by remember { mutableStateOf("") }
+    val display = formatDigitsAsIndonesianNumber(digits)
+    var notes by remember { mutableStateOf("") }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .widthIn(max = 440.dp)
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            ) {
+                Column(Modifier.padding(24.dp)) {
+                    Text("Tutup Shift", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Masukkan jumlah kas aktual di laci untuk menutup shift.",
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(errorMessage, color = Error, fontSize = 13.sp)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = display,
+                        onValueChange = { raw ->
+                            onClearError()
+                            digits = raw.filter { it.isDigit() }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Kas akhir (Rp)") },
+                        placeholder = { Text("0") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        enabled = !isLoading,
+                        isError = !errorMessage.isNullOrBlank(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Catatan (opsional)") },
+                        singleLine = true,
+                        enabled = !isLoading,
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            enabled = !isLoading,
+                        ) {
+                            Text("Batal")
+                        }
+                        Button(
+                            onClick = { onSubmit(digits, notes) },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            enabled = !isLoading && digits.isNotEmpty(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Error),
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Text("Tutup Shift", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShiftSummaryDialog(
+    summary: ShiftSummaryData,
+    onDismiss: () -> Unit,
+    onPrint: (android.bluetooth.BluetoothDevice) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var showPrinterPicker by remember { mutableStateOf(false) }
+
+    // Duration
+    val durationText = remember(summary.startedAt, summary.endedAt) {
+        runCatching {
+            val start = java.time.Instant.parse(summary.startedAt)
+            val end   = java.time.Instant.parse(summary.endedAt)
+            val mins  = java.time.Duration.between(start, end).toMinutes()
+            "${mins / 60}j ${mins % 60}m"
+        }.getOrDefault("-")
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth(0.94f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            ) {
+                Column(
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(24.dp),
+                ) {
+                    // Title
+                    Text(
+                        "Laporan Tutup Shift ${summary.shiftType.replaceFirstChar { it.uppercase() }}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                    )
+                    Text(summary.cashierName, fontSize = 13.sp, color = TextSecondary)
+                    if (summary.branchName.isNotBlank()) {
+                        Text(summary.branchName, fontSize = 12.sp, color = TextMuted)
+                    }
+                    Spacer(Modifier.height(4.dp))
+
+                    // Time range
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(
+                            color = Info.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(
+                                "Mulai: ${com.mediakasir.apotekpos.utils.formatDateTime(summary.startedAt)}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                color = Info,
+                            )
+                        }
+                        Surface(
+                            color = Info.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Text(
+                                "Selesai: ${com.mediakasir.apotekpos.utils.formatDateTime(summary.endedAt)}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                color = Info,
+                            )
+                        }
+                    }
+                    Text("Durasi: $durationText", fontSize = 12.sp, color = TextMuted)
+                    Spacer(Modifier.height(16.dp))
+
+                    @Composable
+                    fun SummaryRow(label: String, value: String, valueColor: Color = TextPrimary, bold: Boolean = false) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, fontSize = 14.sp, color = TextSecondary)
+                            Text(value, fontSize = 14.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.SemiBold, color = valueColor)
+                        }
+                    }
+
+                    // Sales section
+                    Text("Penjualan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(Modifier.height(4.dp))
+                    SummaryRow("Total Transaksi", "${summary.totalTransactions}")
+                    SummaryRow("Total Penjualan", formatIDR(summary.totalSales), bold = true)
+                    SummaryRow("  Tunai", formatIDR(summary.totalCashSales))
+                    SummaryRow("  Non-Tunai", formatIDR(summary.totalNonCashSales))
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Cash reconciliation section
+                    Text("Rekap Kas", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                    Spacer(Modifier.height(4.dp))
+                    SummaryRow("Kas Awal", formatIDR(summary.startingCash))
+                    SummaryRow("Kas Akhir (Aktual)", formatIDR(summary.endingCash))
+                    SummaryRow("Kas Akhir (Expected)", formatIDR(summary.expectedCash))
+                    val diffColor = when {
+                        summary.difference > 0 -> Success
+                        summary.difference < 0 -> Error
+                        else -> TextPrimary
+                    }
+                    val diffPrefix = if (summary.difference > 0) "+" else ""
+                    val diffLabel = when {
+                        summary.difference > 0 -> "Selisih (Lebih)"
+                        summary.difference < 0 -> "Selisih (Kurang)"
+                        else -> "Selisih"
+                    }
+                    SummaryRow(diffLabel, "$diffPrefix${formatIDR(summary.difference)}", diffColor, bold = true)
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // Action buttons
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = { showPrinterPicker = true },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, PosWebPrimary),
+                        ) {
+                            Icon(Icons.Filled.Print, contentDescription = null, tint = PosWebPrimary, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cetak", color = PosWebPrimary)
+                        }
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PosWebPrimary),
+                        ) {
+                            Text("Selesai", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Bluetooth printer picker for shift report
+    if (showPrinterPicker) {
+        val pairedDevices = remember { ThermalPrinterManager.getPairedPrinters(context) }
+        Dialog(
+            onDismissRequest = { showPrinterPicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp)
+                        .widthIn(max = 380.dp)
+                        .fillMaxWidth(0.90f),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text("Pilih Printer Bluetooth", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Spacer(Modifier.height(12.dp))
+                        if (pairedDevices.isEmpty()) {
+                            Text("Tidak ada printer Bluetooth yang dipasangkan.", color = TextMuted, fontSize = 14.sp)
+                        } else {
+                            pairedDevices.forEach { device ->
+                                val name = runCatching { device.name }.getOrDefault("Unknown")
+                                TextButton(
+                                    onClick = {
+                                        showPrinterPicker = false
+                                        onPrint(device)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(Icons.Filled.Print, contentDescription = null, tint = PosWebPrimary, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(name, color = TextPrimary)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = { showPrinterPicker = false }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Batal")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncErrorDialog(
+    pendingCount: Int,
+    errors: List<com.mediakasir.apotekpos.data.local.FailedSyncInfo>,
+    isRetrying: Boolean,
+    netOk: Boolean,
+    retryMessage: String?,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .widthIn(max = 440.dp)
+                    .fillMaxWidth(0.92f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            ) {
+                Column(
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(24.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudOff,
+                            contentDescription = null,
+                            tint = if (errors.isNotEmpty()) Error else Info,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Text(
+                            "Status Sinkronisasi",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    if (!netOk) {
+                        Surface(color = Warning.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+                            Text(
+                                "⚠ Tidak ada koneksi internet. Transaksi akan dikirim otomatis saat online kembali.",
+                                modifier = Modifier.padding(10.dp),
+                                fontSize = 13.sp,
+                                color = Warning,
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+
+                    Text(
+                        "$pendingCount transaksi belum terkirim ke server.",
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Data tersimpan aman di perangkat dan akan dikirim otomatis setiap 15 menit, atau saat kembali online.",
+                        fontSize = 12.sp,
+                        color = TextMuted,
+                    )
+
+                    if (errors.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "${errors.size} transaksi gagal dikirim:",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Error,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        errors.forEach { e ->
+                            Surface(
+                                color = Error.copy(alpha = 0.06f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            ) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(
+                                            formatIDR(e.grandTotal),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextPrimary,
+                                        )
+                                        Text(
+                                            "Percobaan: ${e.syncAttempts}x",
+                                            fontSize = 11.sp,
+                                            color = TextMuted,
+                                        )
+                                    }
+                                    if (!e.lastSyncError.isNullOrBlank()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            e.lastSyncError,
+                                            fontSize = 11.sp,
+                                            color = Error,
+                                            maxLines = 2,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Tekan 'Coba Lagi' untuk memaksa pengiriman ulang sekarang.",
+                            fontSize = 12.sp,
+                            color = TextMuted,
+                        )
+                    }
+
+                    // Retry result message
+                    if (retryMessage != null) {
+                        Spacer(Modifier.height(12.dp))
+                        val isSuccess = retryMessage.startsWith("✅")
+                        val msgColor = when {
+                            isSuccess -> Success
+                            retryMessage.startsWith("⚠") -> Warning
+                            else -> Error
+                        }
+                        Surface(
+                            color = msgColor.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                retryMessage,
+                                modifier = Modifier.padding(10.dp),
+                                fontSize = 13.sp,
+                                color = msgColor,
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            enabled = !isRetrying,
+                        ) {
+                            Text("Tutup")
+                        }
+                        Button(
+                            onClick = onRetry,
+                            modifier = Modifier.weight(1f).height(46.dp),
+                            enabled = !isRetrying && netOk,
+                            colors = ButtonDefaults.buttonColors(containerColor = PosWebPrimary),
+                        ) {
+                            if (isRetrying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Coba Lagi", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProductCard(
     product: Product,
     onClick: () -> Unit,
@@ -812,6 +1422,7 @@ private fun ProductCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(186.dp)
             .clickable(enabled = !isOutOfStock) { onClick() },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isOutOfStock) 0.dp else 1.dp),
@@ -819,7 +1430,10 @@ private fun ProductCard(
         border = if (isOutOfStock) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E7EB)),
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
             // Top row: icon + category badge
             Row(
@@ -844,15 +1458,16 @@ private fun ProductCard(
                 }
                 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isOutOfStock) Error.copy(alpha = 0.12f) else catColor.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (isOutOfStock) Error.copy(alpha = 0.13f) else catColor.copy(alpha = 0.13f),
                 ) {
                     Text(
-                        if (isOutOfStock) "HABIS" else product.category.uppercase(),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        if (isOutOfStock) "Habis" else categoryShortLabel(product.category),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isOutOfStock) Error else catColor,
+                        maxLines = 1,
                     )
                 }
             }
@@ -965,6 +1580,7 @@ fun CartBottomSheet(
     }
 }
 
+@SuppressLint("MissingPermission")
 @Composable
 fun ReceiptDialog(
     transaction: Transaction,
@@ -974,6 +1590,62 @@ fun ReceiptDialog(
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showPrinterPicker by remember { mutableStateOf(false) }
+    var isPrinting by remember { mutableStateOf(false) }
+    var printStatus by remember { mutableStateOf<String?>(null) }
+    var printerTab by remember { mutableStateOf("bluetooth") } // "bluetooth" | "usb"
+    var pendingUsbDevice by remember { mutableStateOf<android.hardware.usb.UsbDevice?>(null) }
+    var usbPermissionGranted by remember { mutableStateOf(false) }
+
+    // Bluetooth permission launcher (Android 12+)
+    val btPermissionLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants.values.all { it }) {
+            showPrinterPicker = true
+        } else {
+            printStatus = "Izin Bluetooth diperlukan"
+        }
+    }
+
+    // Register BroadcastReceiver for USB permission result
+    val usbPermissionReceiver = remember {
+        object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+                if (intent?.action == ThermalPrinterManager.ACTION_USB_PERMISSION) {
+                    val granted = intent.getBooleanExtra(android.hardware.usb.UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                    usbPermissionGranted = granted
+                    if (!granted) printStatus = "Izin USB ditolak"
+                }
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        val filter = android.content.IntentFilter(ThermalPrinterManager.ACTION_USB_PERMISSION)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            ctx.registerReceiver(usbPermissionReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            ctx.registerReceiver(usbPermissionReceiver, filter)
+        }
+        onDispose { ctx.unregisterReceiver(usbPermissionReceiver) }
+    }
+
+    // Auto-print via USB once permission is granted
+    LaunchedEffect(usbPermissionGranted) {
+        if (usbPermissionGranted) {
+            val device = pendingUsbDevice ?: return@LaunchedEffect
+            showPrinterPicker = false
+            isPrinting = true
+            printStatus = null
+            val result = ThermalPrinterManager.printReceiptUsb(ctx, device, transaction, pharmacyName, address, phone)
+            isPrinting = false
+            printStatus = if (result.isSuccess) "Print berhasil!" else "Gagal print: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+            usbPermissionGranted = false
+            pendingUsbDevice = null
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1024,10 +1696,39 @@ fun ReceiptDialog(
                     Text("============================", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                     Text("Terima Kasih!", fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 12.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 }
+
+                // Print status message
+                printStatus?.let { msg ->
+                    Text(
+                        text = msg,
+                        fontSize = 11.sp,
+                        color = if (msg.contains("berhasil", ignoreCase = true)) Success else Warning,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+
                 Row(
                     modifier = Modifier.padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // Print button
+                    OutlinedButton(
+                        onClick = {
+                            printStatus = null
+                            showPrinterPicker = true
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isPrinting,
+                    ) {
+                        if (isPrinting) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (isPrinting) "Printing..." else "Print")
+                    }
+                    // Share button
                     OutlinedButton(
                         onClick = {
                             val lines = buildString {
@@ -1051,6 +1752,7 @@ fun ReceiptDialog(
                         Spacer(Modifier.width(4.dp))
                         Text("Bagikan")
                     }
+                    // Close button
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
@@ -1060,6 +1762,158 @@ fun ReceiptDialog(
                 }
             }
         }
+    }
+
+    // Printer selection dialog (Bluetooth + USB tabs)
+    if (showPrinterPicker) {
+        AlertDialog(
+            onDismissRequest = { showPrinterPicker = false },
+            title = { Text("Pilih Printer", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    // Tab switcher
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("bluetooth" to "Bluetooth", "usb" to "USB").forEach { (key, label) ->
+                            val selected = printerTab == key
+                            Surface(
+                                onClick = { printerTab = key },
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (selected) ApoPrimary else Color(0xFFEFF2F5),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(
+                                    label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) Color.White else TextSecondary,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+
+                    if (printerTab == "bluetooth") {
+                        // ── Bluetooth tab ──────────────────────────────────
+                        if (!ThermalPrinterManager.isBluetoothEnabled(ctx)) {
+                            Text("Bluetooth tidak aktif. Aktifkan Bluetooth di pengaturan perangkat.", fontSize = 13.sp, color = Warning)
+                        } else {
+                            val pairedDevices = remember { ThermalPrinterManager.getPairedPrinters(ctx) }
+                            if (pairedDevices.isEmpty()) {
+                                Text("Tidak ada printer Bluetooth yang dipasangkan.\nPasangkan printer di pengaturan Bluetooth terlebih dahulu.", fontSize = 13.sp)
+                            } else {
+                                Text("Perangkat yang dipasangkan:", fontSize = 12.sp, color = TextSecondary)
+                                Spacer(Modifier.height(4.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    pairedDevices.forEach { device ->
+                                        Surface(
+                                            onClick = {
+                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                                    // Check permission first, then print
+                                                    val hasPerm = ctx.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) ==
+                                                        android.content.pm.PackageManager.PERMISSION_GRANTED
+                                                    if (hasPerm) {
+                                                        showPrinterPicker = false
+                                                        isPrinting = true
+                                                        printStatus = null
+                                                        scope.launch {
+                                                            val result = ThermalPrinterManager.printReceipt(ctx, device, transaction, pharmacyName, address, phone)
+                                                            isPrinting = false
+                                                            printStatus = if (result.isSuccess) "Print berhasil!" else "Gagal print: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                                                        }
+                                                    } else {
+                                                        btPermissionLauncher.launch(arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN))
+                                                    }
+                                                } else {
+                                                    showPrinterPicker = false
+                                                    isPrinting = true
+                                                    printStatus = null
+                                                    scope.launch {
+                                                        val result = ThermalPrinterManager.printReceipt(ctx, device, transaction, pharmacyName, address, phone)
+                                                        isPrinting = false
+                                                        printStatus = if (result.isSuccess) "Print berhasil!" else "Gagal print: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                                                    }
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFFF8FAFC),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApoPrimary)
+                                                Spacer(Modifier.width(10.dp))
+                                                Column {
+                                                    Text(device.name ?: "Unknown Device", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                    Text(device.address, fontSize = 10.sp, color = TextMuted)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // ── USB tab ────────────────────────────────────────
+                        val usbDevices = remember { ThermalPrinterManager.getUsbPrinters(ctx) }
+                        if (usbDevices.isEmpty()) {
+                            Text("Tidak ada perangkat USB yang terhubung.\nHubungkan printer USB via kabel OTG.", fontSize = 13.sp)
+                        } else {
+                            Text("Perangkat USB yang terhubung:", fontSize = 12.sp, color = TextSecondary)
+                            Spacer(Modifier.height(4.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                usbDevices.forEach { device ->
+                                    Surface(
+                                        onClick = {
+                                            if (ThermalPrinterManager.hasUsbPermission(ctx, device)) {
+                                                showPrinterPicker = false
+                                                isPrinting = true
+                                                printStatus = null
+                                                scope.launch {
+                                                    val result = ThermalPrinterManager.printReceiptUsb(ctx, device, transaction, pharmacyName, address, phone)
+                                                    isPrinting = false
+                                                    printStatus = if (result.isSuccess) "Print berhasil!" else "Gagal print: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                                                }
+                                            } else {
+                                                pendingUsbDevice = device
+                                                ThermalPrinterManager.requestUsbPermission(ctx, device)
+                                                printStatus = "Berikan izin akses USB pada dialog yang muncul"
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFFF8FAFC),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(20.dp), tint = ApoPrimary)
+                                            Spacer(Modifier.width(10.dp))
+                                            Column {
+                                                Text(device.productName ?: "USB Printer [${device.vendorId}:${device.productId}]", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                                Text("VID:${device.vendorId} PID:${device.productId}", fontSize = 10.sp, color = TextMuted)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPrinterPicker = false }) {
+                    Text("Batal")
+                }
+            },
+        )
     }
 }
 

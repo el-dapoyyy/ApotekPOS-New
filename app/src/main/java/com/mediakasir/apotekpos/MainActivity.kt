@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.HorizontalDivider
@@ -102,7 +102,7 @@ fun ApotekNavHost() {
             NavItem(R.string.nav_pos, Icons.Filled.ShoppingCart, Screen.POS.route),
             NavItem(R.string.nav_stock, Icons.Filled.Inventory, Screen.Stok.route),
             NavItem(R.string.nav_laporan, Icons.Filled.Analytics, Screen.Laporan.route),
-            NavItem(R.string.nav_history, Icons.Filled.ReceiptLong, Screen.History.route),
+            NavItem(R.string.nav_history, Icons.AutoMirrored.Filled.ReceiptLong, Screen.History.route),
             NavItem(R.string.nav_settings, Icons.Filled.Settings, Screen.Settings.route),
         )
         if (user?.role?.trim()?.equals("kasir", ignoreCase = true) == true) {
@@ -265,8 +265,8 @@ private fun ApotekBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .padding(horizontal = 8.dp),
+                .height(70.dp)
+                .padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {

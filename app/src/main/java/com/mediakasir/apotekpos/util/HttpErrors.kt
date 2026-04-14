@@ -8,6 +8,11 @@ import retrofit2.HttpException
 fun formatHttpException(e: HttpException, gson: Gson = Gson()): String {
     val code = e.code()
     val raw = e.response()?.errorBody()?.string()?.trim().orEmpty()
+
+    if (code >= 500) {
+        return "Server checkout sedang bermasalah. Silakan coba lagi sebentar. (HTTP $code)"
+    }
+
     if (raw.isEmpty()) return "HTTP $code"
     val jsonMsg = runCatching {
         val jo = gson.fromJson(raw, JsonObject::class.java)
