@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -392,8 +391,6 @@ private fun InfoActionRow(
                     modifier = Modifier.size(15.dp).clickable { onClear() },
                     tint = TextMuted,
                 )
-            } else {
-                Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(15.dp), tint = TextMuted)
             }
         }
     }
