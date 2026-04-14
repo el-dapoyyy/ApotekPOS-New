@@ -22,7 +22,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Produksi; debug override lewat local.properties → dev.baseUrl (Laravel lokal / staging).
-        buildConfigField("String", "BASE_URL", "\"https://api.apoapps.id/api/\"")
+        buildConfigField("String", "BASE_URL", "\"https://apoapps.sekawanputrapratama.com/api/\"")
         buildConfigField("String", "DEV_API_HOST_HEADER", "\"\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"\"")
     }
