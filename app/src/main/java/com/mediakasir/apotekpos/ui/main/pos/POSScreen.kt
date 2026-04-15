@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -188,11 +191,12 @@ fun POSScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
+        contentWindowInsets = WindowInsets(0), // Outer Scaffold di MainActivity sudah urus inset
+    ) { _ -> // abaikan innerPadding agar konten meluas penuh tanpa gap ganda
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(bottom = 108.dp + androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                 .background(Background),
         ) {
             val wide = maxWidth >= 900.dp

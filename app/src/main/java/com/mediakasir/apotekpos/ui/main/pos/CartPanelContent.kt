@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,8 +71,12 @@ import com.mediakasir.apotekpos.ui.theme.TextPrimary
 import com.mediakasir.apotekpos.ui.theme.TextSecondary
 import com.mediakasir.apotekpos.utils.formatIDR
 
-val PAYMENT_METHODS = listOf("Tunai", "Transfer", "QRIS", "Debit", "Kredit")
+val PAYMENT_METHODS = listOf("Tunai", "QRIS", "Debit", "Kredit")
 
+/** Metode non-tunai: otomatis isi jumlah = total tagihan */
+private fun isNonCash(method: String) = method != "Tunai"
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CartPanelContent(
     cart: List<CartItem>,
@@ -89,7 +96,8 @@ fun CartPanelContent(
     val isProcessing by viewModel.isProcessing.collectAsState()
 
     Column(modifier = modifier.fillMaxSize().background(Color.White)) {
-        // TOP HEADER
+
+        // ── TOP HEADER ────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -125,8 +133,8 @@ fun CartPanelContent(
                 }
             }
         }
-        
-        // Customer Name Field
+
+        // ── NAMA PELANGGAN ────────────────────────────────────────────────
         val customerName by viewModel.customerName.collectAsState()
         OutlinedTextField(
             value = customerName,
@@ -136,7 +144,9 @@ fun CartPanelContent(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 12.dp),
             label = { Text("Nama Pelanggan / Pasien", fontSize = 12.sp) },
-            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = ApoPrimary, modifier = Modifier.size(20.dp)) },
+            leadingIcon = {
+                Icon(Icons.Filled.Person, contentDescription = null, tint = ApoPrimary, modifier = Modifier.size(20.dp))
+            },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color(0xFFF3F4F6),
@@ -147,7 +157,7 @@ fun CartPanelContent(
             shape = RoundedCornerShape(12.dp)
         )
 
-        // MIDDLE CONTENT (Scrollable)
+        // ── TENGAH (Scrollable) ───────────────────────────────────────────
         Box(modifier = Modifier.weight(1f)) {
             if (cart.isEmpty()) {
                 Column(
@@ -173,6 +183,8 @@ fun CartPanelContent(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Spacer(modifier = Modifier.height(4.dp))
+
+                    // Item keranjang
                     cart.forEach { item ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -219,8 +231,8 @@ fun CartPanelContent(
                         HorizontalDivider(color = Subtle)
                     }
 
-                    Spacer(Modifier.height(8.dp))
-                    // DISKON GLOBAL & PEMBAYARAN HANYA TAMPIL JIKA ADA BARANG
+                    // Diskon
+                    Spacer(Modifier.height(4.dp))
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -237,6 +249,7 @@ fun CartPanelContent(
                         )
                     }
 
+                    // ── Pembayaran ────────────────────────────────────────
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -250,41 +263,113 @@ fun CartPanelContent(
                     }
 
                     payments.forEach { payment ->
-                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Subtle)) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Subtle),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Chip metode pembayaran
+                                Text(
+                                    "Metode Pembayaran",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
                                     PAYMENT_METHODS.forEach { method ->
+                                        val isSelected = payment.method == method
                                         Surface(
-                                            modifier = Modifier.clickable { viewModel.updatePayment(payment.id, method = method) },
+                                            modifier = Modifier.clickable {
+                                                // Pilih metode
+                                                val newAmount = if (isNonCash(method)) {
+                                                    // Non-tunai: auto-isi total
+                                                    total.toLong().toString()
+                                                } else {
+                                                    // Tunai: bersihkan field agar user isi sendiri
+                                                    if (isNonCash(payment.method)) "" else payment.amount
+                                                }
+                                                viewModel.updatePayment(payment.id, method = method, amount = newAmount)
+                                            },
                                             shape = RoundedCornerShape(20.dp),
-                                            color = if (payment.method == method) PosWebPrimary else SurfaceColor,
-                                            border = if (payment.method != method) BorderStroke(1.dp, Border) else null,
+                                            color = if (isSelected) PosWebPrimary else Color.White,
+                                            border = if (!isSelected) BorderStroke(1.dp, Border) else null,
+                                            shadowElevation = if (isSelected) 2.dp else 0.dp,
                                         ) {
-                                            Text(
-                                                method,
-                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                                fontSize = 12.sp,
-                                                color = if (payment.method == method) Color.White else TextSecondary,
-                                                fontWeight = FontWeight.Medium,
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        Icons.Filled.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    method,
+                                                    fontSize = 12.sp,
+                                                    color = if (isSelected) Color.White else TextSecondary,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
+
+                                // Field jumlah — tampil hanya untuk Tunai
+                                if (!isNonCash(payment.method)) {
                                     OutlinedTextField(
                                         value = payment.amount,
                                         onValueChange = { viewModel.updatePayment(payment.id, amount = it) },
-                                        modifier = Modifier.weight(1f),
-                                        label = { Text("Jumlah") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        label = { Text("Jumlah Tunai") },
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color.White,
+                                        ),
+                                        trailingIcon = {
+                                            if (payments.size > 1) {
+                                                IconButton(onClick = { viewModel.removePayment(payment.id) }) {
+                                                    Icon(Icons.Filled.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
                                     )
-                                    if (payments.size > 1) {
-                                        IconButton(onClick = { viewModel.removePayment(payment.id) }) {
-                                            Icon(Icons.Filled.Close, contentDescription = null, tint = Error)
+                                } else {
+                                    // Non-tunai: tampilkan info jumlah otomatis + tombol hapus
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color.White, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column {
+                                            Text("Jumlah ${payment.method}", fontSize = 11.sp, color = TextMuted)
+                                            Text(
+                                                formatIDR(payment.amount.toDoubleOrNull() ?: 0.0),
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = PosWebPrimary
+                                            )
+                                        }
+                                        if (payments.size > 1) {
+                                            IconButton(onClick = { viewModel.removePayment(payment.id) }) {
+                                                Icon(Icons.Filled.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                                            }
                                         }
                                     }
                                 }
@@ -292,6 +377,8 @@ fun CartPanelContent(
                         }
                     }
 
+                    // Total dibayarkan & kembalian
+                    Spacer(Modifier.height(4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Total Dibayarkan", color = TextSecondary)
                         Text(
@@ -308,31 +395,56 @@ fun CartPanelContent(
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Spacer(Modifier.height(24.dp))
+                    // Extra spacer agar konten tidak tertutup panel bawah
+                    Spacer(Modifier.height(32.dp))
                 }
             }
         }
 
-        // BOTTOM SUMMARY & CHECKOUT BUTTON (ALWAYS VISIBLE)
+        // ── BOTTOM SUMMARY & CHECKOUT (SELALU TAMPIL) ─────────────────────
+        // Tambah padding bawah = tinggi navbar kustom (108dp) + system nav bar
         Surface(
             color = Color.White,
-            shadowElevation = 0.dp,
+            shadowElevation = 4.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+            ) {
                 HorizontalDivider(color = Subtle)
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Subtotal", color = TextPrimary, fontSize = 15.sp)
-                    Text(if (cart.isEmpty()) "—" else formatIDR(subtotal), fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
                 Spacer(Modifier.height(12.dp))
+
+                // Subtotal
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Subtotal", color = TextSecondary, fontSize = 13.sp)
+                    Text(
+                        if (cart.isEmpty()) "—" else formatIDR(subtotal),
+                        fontSize = 13.sp,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                if (discountAmt > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Diskon", color = Error, fontSize = 13.sp)
+                        Text("- ${formatIDR(discountAmt)}", color = Error, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
+                // Total
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text(if (cart.isEmpty()) "—" else formatIDR(total), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text(
+                        if (cart.isEmpty()) "—" else formatIDR(total),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp
+                    )
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
 
+                // Tombol Checkout
                 Button(
                     onClick = onCheckout,
                     modifier = Modifier
@@ -341,7 +453,7 @@ fun CartPanelContent(
                     enabled = !isProcessing && cart.isNotEmpty() && totalPaid >= total,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = PosWebPrimary.copy(alpha = if (cart.isEmpty()) 0.5f else 1f),
+                        containerColor = PosWebPrimary,
                         disabledContainerColor = PosWebPrimary.copy(alpha = 0.4f),
                         disabledContentColor = Color.White
                     ),
@@ -352,6 +464,7 @@ fun CartPanelContent(
                         Text("Checkout", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                Spacer(Modifier.height(120.dp))
             }
         }
     }

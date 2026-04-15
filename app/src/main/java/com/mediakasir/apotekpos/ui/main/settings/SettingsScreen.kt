@@ -216,7 +216,7 @@ fun SettingsScreen(
                     Text(stringResource(R.string.settings_reset_app), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
                 }
                 
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(120.dp))
             }
         }
     }

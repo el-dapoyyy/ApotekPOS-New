@@ -129,7 +129,7 @@ fun HistoryScreen(
                         }
                     }
                 }
-                item { Spacer(Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(120.dp)) }
             }
         }
     }

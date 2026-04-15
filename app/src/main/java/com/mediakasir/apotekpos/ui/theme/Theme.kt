@@ -87,11 +87,11 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun ApotekTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false, // Selalu light mode — UI tidak dirancang untuk dark mode
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+        colorScheme = LightColorScheme, // hardcode light scheme
         typography = ApotekTypography,
         content = content,
     )

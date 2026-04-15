@@ -46,6 +46,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -81,6 +83,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Paksa system bar light agar tidak ada garis hitam di night mode
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         setContent {
             ApotekTheme {
                 ApotekNavHost()
@@ -142,6 +149,7 @@ fun ApotekNavHost() {
     }
 
     Scaffold(
+        containerColor = Color.White,
         bottomBar = {
             if (showMainNav) {
                 ApotekBottomBar(
@@ -163,7 +171,7 @@ fun ApotekNavHost() {
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding()),
         ) {
             composable(Screen.Splash.route) {
                 SplashScreen(
@@ -259,13 +267,12 @@ private fun ApotekBottomBar(
             .background(Color.White)
             .navigationBarsPadding(),
     ) {
-        // thin top divider
-        HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFE5E7EB))
+        // Divider dihapus — konten meluas mulus ke atas navbar
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(70.dp)
+                .height(108.dp)
                 .padding(horizontal = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
@@ -290,22 +297,22 @@ private fun ApotekBottomBar(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (selected) accent else Color.Transparent)
-                            .padding(horizontal = 18.dp, vertical = 6.dp),
+                            .padding(horizontal = 22.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = item.icon,
                             contentDescription = label,
-                            modifier = Modifier.size(26.dp),
+                            modifier = Modifier.size(32.dp),
                             tint = if (selected) Color.White else inactiveIcon,
                         )
                     }
 
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(4.dp))
 
                     Text(
                         text = label,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (selected) Color(0xFF1F2937) else inactiveText,
                         maxLines = 1,
