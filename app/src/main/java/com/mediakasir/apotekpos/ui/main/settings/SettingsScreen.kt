@@ -36,7 +36,7 @@ fun SettingsScreen(
     var showTutupKasirDialog by remember { mutableStateOf(false) }
     
     var selectedTab by remember { mutableStateOf("Informasi Apotek") }
-    val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan")
+    val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan", "Tentang Aplikasi")
 
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         // Top App Bar
@@ -112,7 +112,8 @@ fun SettingsScreen(
                         val icon = when(tab) {
                             "Informasi Apotek" -> Icons.Filled.Home
                             "Informasi Pengguna" -> Icons.Filled.Group
-                            else -> Icons.Filled.Lock
+                            "Akun & Keamanan" -> Icons.Filled.Lock
+                            else -> Icons.Filled.Info
                         }
                         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(16.dp))
@@ -141,7 +142,8 @@ fun SettingsScreen(
                     when(selectedTab) {
                         "Informasi Apotek" -> "Data Apotek"
                         "Informasi Pengguna" -> "Detail Akun"
-                        else -> "Security Options"
+                        "Akun & Keamanan" -> "Security Options"
+                        else -> "Informasi Aplikasi"
                     }, 
                     fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
                 )
@@ -150,7 +152,9 @@ fun SettingsScreen(
                 HorizontalDivider(color = Border)
                 Spacer(Modifier.height(16.dp))
                 
-                Text("Options", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                if (selectedTab != "Tentang Aplikasi") {
+                    Text("Options", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                }
                 Spacer(Modifier.height(12.dp))
                 
                 when(selectedTab) {
@@ -165,55 +169,61 @@ fun SettingsScreen(
                         DetailRow("Nama Pengguna", user?.name ?: "-")
                         DetailRow("Role Sistem", user?.role?.uppercase() ?: "-")
                     }
+                    "Tentang Aplikasi" -> {
+                        DetailRow("Nama Aplikasi", "ApoApps POS")
+                        DetailRow("Versi", "1.0.0")
+                        DetailRow("Developer", "MediaKasir")
+                        DetailRow("Kontak", "support@mediakasir.com")
+                        DetailRow("Deskripsi", "Aplikasi Point of Sale untuk manajemen apotek secara digital dan terintegrasi.")
+                    }
                     "Akun & Keamanan" -> {
                         DetailRow("Ganti Password", "Ganti password dilakukan lewat ApoApps web (admin).")
                         DetailRow("Keamanan", "Aplikasi POS hanya sinkron dengan API.")
+
+                        Spacer(Modifier.height(32.dp))
+
+                        // Tutup Kasir Button
+                        Button(
+                            onClick = { showTutupKasirDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Info),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Tutup Kasir", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Button(
+                            onClick = { showLogoutDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = onLogoutAllDevices,
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Logout Semua Perangkat", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Button(
+                            onClick = { showClearDialog = true },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(stringResource(R.string.settings_reset_app), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                        }
                     }
-                }
-                
-                Spacer(Modifier.height(32.dp))
-                
-                // Tutup Kasir Button
-                Button(
-                    onClick = { showTutupKasirDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Info),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Tutup Kasir", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                }
-                
-                Spacer(Modifier.height(16.dp))
-
-                // Solid Green Buttons (Mimicking "Manual Sync" and "Data Management" visually)
-                Button(
-                    onClick = { showLogoutDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                OutlinedButton(
-                    onClick = onLogoutAllDevices,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Logout Semua Perangkat", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Button(
-                    onClick = { showClearDialog = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(stringResource(R.string.settings_reset_app), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
                 }
                 
                 Spacer(Modifier.height(120.dp))

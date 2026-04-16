@@ -308,15 +308,16 @@ private fun ApotekBottomBar(
                         )
                     }
 
-                    Spacer(Modifier.height(4.dp))
-
-                    Text(
-                        text = label,
-                        fontSize = 13.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) Color(0xFF1F2937) else inactiveText,
-                        maxLines = 1,
-                    )
+                    if (selected) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF1F2937),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
