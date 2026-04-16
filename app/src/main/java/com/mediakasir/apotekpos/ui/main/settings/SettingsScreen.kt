@@ -138,19 +138,21 @@ fun SettingsScreen(
                 Text(selectedTab, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.height(24.dp))
                 
-                Text(
-                    when(selectedTab) {
-                        "Informasi Apotek" -> "Data Apotek"
-                        "Informasi Pengguna" -> "Detail Akun"
-                        "Akun & Keamanan" -> "Security Options"
-                        else -> "Informasi Aplikasi"
-                    }, 
-                    fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
-                )
-                Text("Terakhir diperbarui hari ini", fontSize = 13.sp, color = TextSecondary)
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider(color = Border)
-                Spacer(Modifier.height(16.dp))
+                if (selectedTab != "Tentang Aplikasi") {
+                    Text(
+                        when(selectedTab) {
+                            "Informasi Apotek" -> "Data Apotek"
+                            "Informasi Pengguna" -> "Detail Akun"
+                            "Akun & Keamanan" -> "Security Options"
+                            else -> ""
+                        }, 
+                        fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary
+                    )
+                    Text("Terakhir diperbarui hari ini", fontSize = 13.sp, color = TextSecondary)
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = Border)
+                    Spacer(Modifier.height(16.dp))
+                }
                 
                 if (selectedTab != "Tentang Aplikasi") {
                     Text("Options", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
@@ -171,9 +173,8 @@ fun SettingsScreen(
                     }
                     "Tentang Aplikasi" -> {
                         DetailRow("Nama Aplikasi", "ApoApps POS")
-                        DetailRow("Versi", "1.0.0")
-                        DetailRow("Developer", "MediaKasir")
-                        DetailRow("Kontak", "support@mediakasir.com")
+                        DetailRow("Versi", "v1.0")
+                        DetailRow("Kontak", "support@apoapps.sekawanputrapratama.com")
                         DetailRow("Deskripsi", "Aplikasi Point of Sale untuk manajemen apotek secara digital dan terintegrasi.")
                     }
                     "Akun & Keamanan" -> {
