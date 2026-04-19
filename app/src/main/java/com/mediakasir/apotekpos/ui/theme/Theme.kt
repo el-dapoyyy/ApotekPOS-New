@@ -53,6 +53,30 @@ val TextPrimary = Color(0xFF1E293B)
 val TextSecondary = Color(0xFF64748B)
 val TextMuted = Color(0xFF94A3B8)
 
+// ── Consolidated surface/fill colors (formerly inline hex) ──
+val SurfaceFill = Color(0xFFF3F4F6)       // search bars, input fills, card fills
+val SurfaceSubtle = Color(0xFFF9FAFB)     // cart item rows, list item bg
+val SurfaceElevated = Color(0xFFF8FAFC)   // sidebar panels, elevated sections
+val DividerColor = Color(0xFFE5E7EB)      // dividers, borders
+val Overlay = Color(0x73000000)           // dialog overlay ~45% black
+
+// ── Category/stat card backgrounds ──
+val StatBgGreen = Color(0xFFECFDF5)
+val StatBgTeal = Color(0xFFE0F2F1)
+val StatBgBlue = Color(0xFFEFF6FF)
+val StatBgAmber = Color(0xFFFFFBEB)
+val StatBgRed = Color(0xFFFFEBEE)
+val StatBgYellow = Color(0xFFFFF8E1)
+
+// ── Swipe action colors ──
+val SwipeRedBright = Color(0xFFD32F2F)
+val SwipeRedLight = Color(0xFFEF5350)
+val SwipeAmber = Color(0xFFF57C00)
+val SwipeAmberLight = Color(0xFFFFB74D)
+
+// ── Special brand ──
+val RacikanPurple = Color(0xFF6A1B9A)
+
 private val LightColorScheme = lightColorScheme(
     primary = ApoPrimary,
     onPrimary = Color.White,

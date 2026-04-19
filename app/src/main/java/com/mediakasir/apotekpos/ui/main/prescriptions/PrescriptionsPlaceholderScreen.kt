@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalPharmacy
+import androidx.compose.material.icons.outlined.LocalPharmacy
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -68,7 +68,7 @@ fun PrescriptionsPlaceholderScreen(
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Icon(Icons.Filled.LocalPharmacy, contentDescription = null, modifier = Modifier.padding(bottom = 8.dp))
+                    Icon(Icons.Outlined.LocalPharmacy, contentDescription = null, modifier = Modifier.padding(bottom = 8.dp))
                     Text("Belum ada data resep")
                 }
             }

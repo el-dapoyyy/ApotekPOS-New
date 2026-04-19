@@ -1,4 +1,4 @@
-package com.mediakasir.apotekpos.ui.main.pos
+﻿package com.mediakasir.apotekpos.ui.main.pos
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,19 +22,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,8 +43,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -55,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mediakasir.apotekpos.ui.components.SwipeableItem
 import com.mediakasir.apotekpos.ui.theme.Border
 import com.mediakasir.apotekpos.ui.theme.ApoPrimary
 import com.mediakasir.apotekpos.ui.theme.Error
@@ -76,7 +80,7 @@ val PAYMENT_METHODS = listOf("Tunai", "QRIS", "Debit", "Kredit")
 /** Metode non-tunai: otomatis isi jumlah = total tagihan */
 private fun isNonCash(method: String) = method != "Tunai"
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun CartPanelContent(
     cart: List<CartItem>,
@@ -97,7 +101,7 @@ fun CartPanelContent(
 
     Column(modifier = modifier.fillMaxSize().background(Color.White)) {
 
-        // ── TOP HEADER ────────────────────────────────────────────────────
+        // â”€â”€ TOP HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -121,20 +125,20 @@ fun CartPanelContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (cart.isNotEmpty()) {
                     TextButton(onClick = { viewModel.clearCart() }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Clear All", tint = Error, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Outlined.Delete, contentDescription = "Clear All", tint = Error, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("Clear All", color = Error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (showTopClose && onDismiss != null) {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Tutup")
+                        Icon(Icons.Outlined.Close, contentDescription = "Tutup")
                     }
                 }
             }
         }
 
-        // ── NAMA PELANGGAN ────────────────────────────────────────────────
+        // â”€â”€ NAMA PELANGGAN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         val customerName by viewModel.customerName.collectAsState()
         OutlinedTextField(
             value = customerName,
@@ -145,7 +149,7 @@ fun CartPanelContent(
                 .padding(bottom = 12.dp),
             label = { Text("Nama Pelanggan / Pasien", fontSize = 12.sp) },
             leadingIcon = {
-                Icon(Icons.Filled.Person, contentDescription = null, tint = ApoPrimary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.Person, contentDescription = null, tint = ApoPrimary, modifier = Modifier.size(20.dp))
             },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
@@ -157,7 +161,7 @@ fun CartPanelContent(
             shape = RoundedCornerShape(12.dp)
         )
 
-        // ── TENGAH (Scrollable) ───────────────────────────────────────────
+        // â”€â”€ TENGAH (Scrollable) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Box(modifier = Modifier.weight(1f)) {
             if (cart.isEmpty()) {
                 Column(
@@ -186,6 +190,21 @@ fun CartPanelContent(
 
                     // Item keranjang
                     cart.forEach { item ->
+                        val swipeState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    viewModel.removeFromCart(item.product.id)
+                                    true
+                                } else false
+                            },
+                        )
+                        SwipeableItem(
+                            state = swipeState,
+                            enableEndToStart = true,
+                            enableStartToEnd = false,
+                            endToStartIcon = Icons.Outlined.Delete,
+                            endToStartLabel = "Hapus",
+                        ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -193,7 +212,7 @@ fun CartPanelContent(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(item.product.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                 Text(
-                                    "${formatIDR(item.product.sellPrice)} × ${item.qty} = ${formatIDR(item.product.sellPrice * item.qty)}",
+                                    "${formatIDR(item.product.sellPrice)} Ã— ${item.qty} = ${formatIDR(item.product.sellPrice * item.qty)}",
                                     fontSize = 12.sp,
                                     color = TextSecondary,
                                 )
@@ -206,7 +225,7 @@ fun CartPanelContent(
                                     onClick = { viewModel.updateQty(item.product.id, -1) },
                                     modifier = Modifier.size(28.dp),
                                 ) {
-                                    Icon(Icons.Filled.Remove, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Outlined.Remove, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
                                 }
                                 Text(
                                     item.qty.toString(),
@@ -218,15 +237,16 @@ fun CartPanelContent(
                                     onClick = { viewModel.updateQty(item.product.id, 1) },
                                     modifier = Modifier.size(28.dp),
                                 ) {
-                                    Icon(Icons.Filled.Add, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Outlined.Add, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
                                 }
                                 IconButton(
                                     onClick = { viewModel.removeFromCart(item.product.id) },
                                     modifier = Modifier.size(28.dp),
                                 ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Outlined.Delete, contentDescription = null, tint = Error, modifier = Modifier.size(16.dp))
                                 }
                             }
+                        }
                         }
                         HorizontalDivider(color = Subtle)
                     }
@@ -249,7 +269,7 @@ fun CartPanelContent(
                         )
                     }
 
-                    // ── Pembayaran ────────────────────────────────────────
+                    // â”€â”€ Pembayaran â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -257,7 +277,7 @@ fun CartPanelContent(
                     ) {
                         Text("PEMBAYARAN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         TextButton(onClick = { viewModel.addPayment() }) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Text("+ SPLIT", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
@@ -309,7 +329,7 @@ fun CartPanelContent(
                                             ) {
                                                 if (isSelected) {
                                                     Icon(
-                                                        Icons.Filled.CheckCircle,
+                                                        Icons.Outlined.CheckCircle,
                                                         contentDescription = null,
                                                         tint = Color.White,
                                                         modifier = Modifier.size(13.dp)
@@ -326,7 +346,7 @@ fun CartPanelContent(
                                     }
                                 }
 
-                                // Field jumlah — tampil hanya untuk Tunai
+                                // Field jumlah â€” tampil hanya untuk Tunai
                                 if (!isNonCash(payment.method)) {
                                     OutlinedTextField(
                                         value = payment.amount,
@@ -342,7 +362,7 @@ fun CartPanelContent(
                                         trailingIcon = {
                                             if (payments.size > 1) {
                                                 IconButton(onClick = { viewModel.removePayment(payment.id) }) {
-                                                    Icon(Icons.Filled.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                                                    Icon(Icons.Outlined.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
                                                 }
                                             }
                                         }
@@ -368,7 +388,7 @@ fun CartPanelContent(
                                         }
                                         if (payments.size > 1) {
                                             IconButton(onClick = { viewModel.removePayment(payment.id) }) {
-                                                Icon(Icons.Filled.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Outlined.Close, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
                                             }
                                         }
                                     }
@@ -401,7 +421,7 @@ fun CartPanelContent(
             }
         }
 
-        // ── BOTTOM SUMMARY & CHECKOUT (SELALU TAMPIL) ─────────────────────
+        // â”€â”€ BOTTOM SUMMARY & CHECKOUT (SELALU TAMPIL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Tambah padding bawah = tinggi navbar kustom (108dp) + system nav bar
         Surface(
             color = Color.White,
@@ -418,7 +438,7 @@ fun CartPanelContent(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Subtotal", color = TextSecondary, fontSize = 13.sp)
                     Text(
-                        if (cart.isEmpty()) "—" else formatIDR(subtotal),
+                        if (cart.isEmpty()) "â€”" else formatIDR(subtotal),
                         fontSize = 13.sp,
                         color = TextPrimary,
                         fontWeight = FontWeight.SemiBold
@@ -437,7 +457,7 @@ fun CartPanelContent(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Total", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Text(
-                        if (cart.isEmpty()) "—" else formatIDR(total),
+                        if (cart.isEmpty()) "â€”" else formatIDR(total),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 18.sp
                     )

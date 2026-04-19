@@ -35,7 +35,7 @@ interface LocalTransactionDao {
 
     // ── Query pending for sync ──
 
-    @Query("SELECT * FROM local_transactions WHERE syncStatus = 'pending' OR syncStatus = 'failed' ORDER BY createdAtEpochMs ASC")
+    @Query("SELECT * FROM local_transactions WHERE (syncStatus = 'pending' OR syncStatus = 'failed') ORDER BY createdAtEpochMs ASC")
     suspend fun getPendingTransactions(): List<LocalTransactionEntity>
 
     @Query("SELECT * FROM local_transaction_items WHERE transactionId = :txId")
@@ -104,6 +104,17 @@ interface LocalTransactionDao {
     suspend fun getTransactionsForShift(shiftId: String): List<LocalTransactionEntity>
 
     @Query("""
+        SELECT i.productName AS name, SUM(i.quantity) AS qty
+        FROM local_transaction_items i
+        INNER JOIN local_transactions t ON t.id = i.transactionId
+        WHERE t.shiftId = :shiftId AND i.isRacikan = 0
+        GROUP BY i.productId, i.productName
+        ORDER BY qty DESC
+        LIMIT :limit
+    """)
+    suspend fun getTopProductsForShift(shiftId: String, limit: Int = 5): List<TopProductStat>
+
+    @Query("""
         SELECT COALESCE(SUM(grandTotal), 0.0) 
         FROM local_transactions 
         WHERE shiftId = :shiftId
@@ -121,8 +132,12 @@ interface LocalTransactionDao {
     suspend fun getTransaction(txId: String): LocalTransactionEntity?
 
     /** Returns all transactions not yet confirmed by server (pending/syncing/failed). */
-    @Query("SELECT * FROM local_transactions WHERE syncStatus != 'synced' ORDER BY createdAtEpochMs DESC LIMIT 100")
+    @Query("SELECT * FROM local_transactions WHERE syncStatus != 'synced' AND syncStatus != 'voided' ORDER BY createdAtEpochMs DESC LIMIT 100")
     suspend fun getUnsyncedTransactions(): List<LocalTransactionEntity>
+
+    /** Mark a local (not-yet-synced) transaction as voided so it is excluded from sync. */
+    @Query("UPDATE local_transactions SET syncStatus = 'voided' WHERE id = :txId AND syncStatus != 'synced'")
+    suspend fun voidTransaction(txId: String)
 
     @Query("SELECT COUNT(*) FROM local_transaction_items WHERE transactionId = :txId")
     suspend fun getItemCount(txId: String): Int
@@ -155,4 +170,9 @@ data class FailedSyncInfo(
     val completedAt: String,
     val syncAttempts: Int,
     val lastSyncError: String?,
+)
+
+data class TopProductStat(
+    val name: String,
+    val qty: Double,
 )

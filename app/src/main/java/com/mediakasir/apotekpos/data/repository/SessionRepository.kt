@@ -33,6 +33,7 @@ class SessionRepository @Inject constructor(
      * Wajib selaras dengan FK `sync_logs.device_id` di backend.
      */
     private val SERVER_USER_DEVICE_ROW_ID_KEY = stringPreferencesKey("server_user_device_row_id")
+    private val PREFERRED_BT_PRINTER_ADDRESS_KEY = stringPreferencesKey("preferred_bt_printer_address")
     /** Legacy: dulu dipakai untuk CRC/hex palsu — dibuang saat migrasi. */
     private val DEVICE_ID_LEGACY_KEY = stringPreferencesKey("device_id")
 
@@ -75,6 +76,16 @@ class SessionRepository @Inject constructor(
     suspend fun saveServerUserDeviceRowId(id: Int) {
         context.dataStore.edit { it[SERVER_USER_DEVICE_ROW_ID_KEY] = id.toString() }
     }
+
+    suspend fun savePreferredBtPrinterAddress(address: String) {
+        context.dataStore.edit {
+            if (address.isBlank()) it.remove(PREFERRED_BT_PRINTER_ADDRESS_KEY)
+            else it[PREFERRED_BT_PRINTER_ADDRESS_KEY] = address
+        }
+    }
+
+    suspend fun getPreferredBtPrinterAddress(): String? =
+        context.dataStore.data.first()[PREFERRED_BT_PRINTER_ADDRESS_KEY]?.takeIf { it.isNotBlank() }
 
     suspend fun saveSession(user: UserInfo, token: String) {
         context.dataStore.edit { prefs ->
@@ -122,6 +133,7 @@ class SessionRepository @Inject constructor(
             prefs.remove(USER_KEY)
             prefs.remove(LICENSE_KEY)
             prefs.remove(SERVER_USER_DEVICE_ROW_ID_KEY)
+            prefs.remove(PREFERRED_BT_PRINTER_ADDRESS_KEY)
         }
     }
 

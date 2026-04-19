@@ -18,9 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -35,12 +37,14 @@ import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.Transaction
 import com.mediakasir.apotekpos.data.model.TransactionItem
 import com.mediakasir.apotekpos.data.model.UserInfo
+import com.mediakasir.apotekpos.ui.components.SwipeableItem
 import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.theme.*
 import com.mediakasir.apotekpos.utils.formatDateTime
 import com.mediakasir.apotekpos.utils.formatIDR
 import kotlinx.coroutines.flow.distinctUntilChanged
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     license: LicenseInfo?,
@@ -53,9 +57,15 @@ fun HistoryScreen(
     var detailLoading by remember { mutableStateOf(false) }
     var returnTrx by remember { mutableStateOf<Transaction?>(null) }
     var returnError by remember { mutableStateOf<String?>(null) }
+    var voidTrx by remember { mutableStateOf<Transaction?>(null) }
     val listState = rememberLazyListState()
+    var isRefreshing by remember { mutableStateOf(false) }
 
     val branchId = remember(license, user) { effectiveBranchId(license, user) }
+
+    LaunchedEffect(isLoading) {
+        if (!isLoading) isRefreshing = false
+    }
 
     LaunchedEffect(user?.userId, branchId) {
         if (user != null) {
@@ -88,6 +98,14 @@ fun HistoryScreen(
         }
     }
 
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            viewModel.load(branchId, refresh = true)
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -109,7 +127,7 @@ fun HistoryScreen(
         } else if (transactions.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted)
+                    Icon(Icons.AutoMirrored.Outlined.ReceiptLong, contentDescription = null, modifier = Modifier.size(48.dp), tint = TextMuted)
                     Text("Belum ada transaksi", color = TextMuted, modifier = Modifier.padding(top = 8.dp))
                 }
             }
@@ -119,8 +137,32 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(transactions) { trx ->
-                    TransactionCard(trx) { openTransaction(trx) }
+                items(transactions, key = { it.id }) { trx ->
+                    val swipeState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                if (trx.isPendingSync) {
+                                    // Swipe left on pending → void (cancel)
+                                    voidTrx = trx
+                                } else {
+                                    // Swipe left on synced → return
+                                    returnTrx = trx
+                                    returnError = null
+                                }
+                            }
+                            false
+                        },
+                    )
+                    SwipeableItem(
+                        state = swipeState,
+                        enableEndToStart = true,
+                        enableStartToEnd = false,
+                        endToStartIcon = if (trx.isPendingSync) Icons.Outlined.Cancel else Icons.Outlined.Replay,
+                        endToStartLabel = if (trx.isPendingSync) "Batalkan" else "Return",
+                        endToStartColor = if (trx.isPendingSync) Error else SwipeAmber,
+                    ) {
+                        TransactionCard(trx) { openTransaction(trx) }
+                    }
                 }
                 if (isLoading) {
                     item {
@@ -133,6 +175,7 @@ fun HistoryScreen(
             }
         }
     }
+    } // PullToRefreshBox
 
     dialogTrx?.let { trx ->
         TransactionDetailDialog(
@@ -173,6 +216,44 @@ fun HistoryScreen(
             },
         )
     }
+
+    // Void confirm dialog (only for pending/unsynced transactions)
+    voidTrx?.let { trx ->
+        AlertDialog(
+            onDismissRequest = { voidTrx = null },
+            icon = { Icon(Icons.Outlined.Cancel, contentDescription = null, tint = Error) },
+            title = { Text("Batalkan Transaksi?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Transaksi ini belum dikirim ke server.")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Invoice: ${trx.transactionNumber}\nTotal: ${formatIDR(trx.totalAmount)}",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Transaksi yang dibatalkan tidak bisa dipulihkan.",
+                        fontSize = 12.sp,
+                        color = Error,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.voidLocalTransaction(trx.id, branchId) { _ -> }
+                        voidTrx = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Error),
+                ) { Text("Ya, Batalkan") }
+            },
+            dismissButton = {
+                TextButton(onClick = { voidTrx = null }) { Text("Batal") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -193,7 +274,7 @@ fun TransactionCard(transaction: Transaction, onClick: () -> Unit) {
                     .background(Secondary, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Receipt, contentDescription = null, tint = Primary, modifier = Modifier.size(22.dp))
+                Icon(Icons.Outlined.Receipt, contentDescription = null, tint = Primary, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {

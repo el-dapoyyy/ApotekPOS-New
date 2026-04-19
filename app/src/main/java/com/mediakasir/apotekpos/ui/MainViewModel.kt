@@ -14,16 +14,20 @@ import com.mediakasir.apotekpos.data.model.DeviceHeaderIds
 import com.mediakasir.apotekpos.data.model.UserInfo
 import com.mediakasir.apotekpos.data.model.blocksAppUse
 import com.mediakasir.apotekpos.data.model.blocksLogin
+import com.mediakasir.apotekpos.data.local.LocalTransactionDao
 import com.mediakasir.apotekpos.data.network.ApiService
 import com.mediakasir.apotekpos.data.repository.SessionRepository
+import com.mediakasir.apotekpos.data.sync.ConnectivityObserver
 import com.mediakasir.apotekpos.util.parseLoginError
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 import java.net.SocketTimeoutException
@@ -36,6 +40,8 @@ class MainViewModel @Inject constructor(
     private val session: SessionRepository,
     private val gson: Gson,
     @ApplicationContext private val appContext: Context,
+    private val connectivityObserver: ConnectivityObserver,
+    private val localTransactionDao: LocalTransactionDao,
 ) : ViewModel() {
 
     private val _license = MutableStateFlow<LicenseInfo?>(null)
@@ -49,6 +55,14 @@ class MainViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /** True when the device has validated internet connectivity. */
+    val isOnline: StateFlow<Boolean> = connectivityObserver.isOnline
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** Number of local transactions waiting to be synced to the server. */
+    val pendingSyncCount: StateFlow<Int> = localTransactionDao.observePendingCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     init {
         observeSession()

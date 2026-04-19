@@ -68,13 +68,15 @@ class TransactionSyncWorker @AssistedInject constructor(
                             completedAt = tx.completedAt,
                             items = items.map {
                                 PosTransactionLineDto(
-                                    productId = it.productId,
+                                    productId = if (it.isRacikan) null else it.productId.takeIf { id -> id != 0 },
                                     batchId = it.batchId,
                                     quantity = it.quantity,
                                     unitPrice = it.unitPrice,
                                     discount = it.discount,
                                     subtotal = it.subtotal,
                                     isRacikan = it.isRacikan,
+                                    compoundRecipeId = it.compoundRecipeId,
+                                    itemName = it.itemName ?: it.productName,
                                 )
                             },
                             payments = payments.map {

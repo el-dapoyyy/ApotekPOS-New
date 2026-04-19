@@ -22,18 +22,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -101,6 +102,12 @@ fun StokScreen(
 
     val branchId = remember(license, user) { effectiveBranchId(license, user) }
 
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isLoading) {
+        if (!isLoading) isRefreshing = false
+    }
+
     LaunchedEffect(user?.userId, branchId) {
         if (user != null) {
             viewModel.loadProducts(branchId)
@@ -118,6 +125,14 @@ fun StokScreen(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { _ ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                viewModel.loadProducts(branchId)
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -147,7 +162,7 @@ fun StokScreen(
                             color = Color.White,
                             modifier = Modifier.padding(end = 6.dp)
                         )
-                        Icon(Icons.Filled.AccountCircle, contentDescription = "Profile", tint = Color.White)
+                        Icon(Icons.Outlined.AccountCircle, contentDescription = "Profile", tint = Color.White)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -166,10 +181,10 @@ fun StokScreen(
                         }
                     },
                     placeholder = { Text("Cari nama obat / barcode...", color = Color.Gray) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.Gray) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = Color.Gray) },
                     trailingIcon = {
                         Row(modifier = Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Mic, contentDescription = null, tint = Color.Gray)
+                            Icon(Icons.Outlined.Mic, contentDescription = null, tint = Color.Gray)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -205,7 +220,7 @@ fun StokScreen(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Filter", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
@@ -292,6 +307,7 @@ fun StokScreen(
                 }
             }
         }
+        } // PullToRefreshBox
     }
 
     if (selectedProduct != null) {
@@ -331,7 +347,8 @@ private fun StokReadOnlyRow(
     product: Product,
     onBatches: () -> Unit,
 ) {
-    val isLowStock = product.currentStock <= product.minStock
+    val isOutOfStock = product.currentStock <= 0
+    val isLowStock = !isOutOfStock && product.currentStock <= product.minStock
     val progress = if (product.minStock > 0) {
         (product.currentStock.toFloat() / (product.minStock * 2).toFloat()).coerceIn(0f, 1f)
     } else {
@@ -350,17 +367,18 @@ private fun StokReadOnlyRow(
             modifier = Modifier.padding(16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(16.dp), color = Primary) {
-                    Text(
-                        "NEW",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 10.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                if (isLowStock) {
+                if (isOutOfStock) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = Error.copy(alpha = 0.13f)) {
+                        Text(
+                            "Habis",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 10.sp,
+                            color = Error,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                } else if (isLowStock) {
                     Surface(shape = RoundedCornerShape(16.dp), color = Warning.copy(alpha = 0.15f)) {
                         Text(
                             "Stok Menipis",
@@ -380,7 +398,7 @@ private fun StokReadOnlyRow(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onBatches, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Lihat batch", tint = TextSecondary)
+                    Icon(Icons.AutoMirrored.Outlined.ViewList, contentDescription = "Lihat batch", tint = TextSecondary)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -401,14 +419,22 @@ private fun StokReadOnlyRow(
                         ) {
                              Surface(
                                  shape = RoundedCornerShape(4.dp),
-                                 color = if (isLowStock) Warning else Primary,
+                                 color = when {
+                                     isOutOfStock -> Error
+                                     isLowStock -> Warning
+                                     else -> Primary
+                                 },
                                  modifier = Modifier.fillMaxWidth(progress).height(6.dp)
                              ) {}
                         }
                         Spacer(Modifier.width(8.dp))
                         Text("$progressPercent%", fontSize=12.sp, fontWeight=FontWeight.Bold, color=TextPrimary)
                         Spacer(Modifier.width(8.dp))
-                        Surface(shape=RoundedCornerShape(8.dp), color=if (isLowStock) Warning else Primary) {
+                        Surface(shape=RoundedCornerShape(8.dp), color=when {
+                            isOutOfStock -> Error
+                            isLowStock -> Warning
+                            else -> Primary
+                        }) {
                            Text("$progressPercent%", modifier=Modifier.padding(horizontal=8.dp, vertical=4.dp), color=Color.White, fontSize=12.sp, fontWeight=FontWeight.Bold)
                         } 
                     }

@@ -120,6 +120,15 @@ class HistoryViewModel @Inject constructor(
         }
     }
 
+    /** Void a local (not-yet-synced) transaction. Has no effect on already-synced transactions. */
+    fun voidLocalTransaction(txId: String, branchId: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            localTransactionDao.voidTransaction(txId)
+            load(branchId, refresh = true)
+            onResult(true)
+        }
+    }
+
     fun submitReturn(
         transactionId: Int,
         reason: String,

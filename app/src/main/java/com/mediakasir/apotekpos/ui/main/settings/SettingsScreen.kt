@@ -8,7 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,7 +50,7 @@ fun SettingsScreen(
             ) {
                 // Hamburger menu on left
                 Icon(
-                    Icons.Filled.Menu, 
+                    Icons.Outlined.Menu, 
                     contentDescription = null, 
                     tint = TextSecondary,
                     modifier = Modifier
@@ -86,7 +87,7 @@ fun SettingsScreen(
                 ) {
                     Surface(shape = CircleShape, color = Primary, modifier = Modifier.size(72.dp)) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+                            Icon(Icons.Outlined.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
                         }
                     }
                     Spacer(Modifier.height(16.dp))
@@ -110,17 +111,17 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val icon = when(tab) {
-                            "Informasi Apotek" -> Icons.Filled.Home
-                            "Informasi Pengguna" -> Icons.Filled.Group
-                            "Akun & Keamanan" -> Icons.Filled.Lock
-                            else -> Icons.Filled.Info
+                            "Informasi Apotek" -> Icons.Outlined.Home
+                            "Informasi Pengguna" -> Icons.Outlined.Group
+                            "Akun & Keamanan" -> Icons.Outlined.Lock
+                            else -> Icons.Outlined.Info
                         }
                         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(16.dp))
                         Text(tab, color = contentColor, fontSize = 15.sp, modifier = Modifier.weight(1f))
                         
                         if (!isSelected) {
-                            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }

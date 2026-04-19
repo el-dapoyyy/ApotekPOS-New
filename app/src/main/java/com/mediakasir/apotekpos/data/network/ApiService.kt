@@ -75,6 +75,12 @@ interface ApiService {
     @POST("pos/transactions/sync")
     suspend fun syncTransactions(@Body body: TransactionSyncRequest): TransactionSyncEnvelope
 
+    @POST("pos/cash-expenses/sync")
+    suspend fun syncCashExpenses(@Body body: CashExpenseSyncRequest): CashExpenseSyncEnvelope
+
+    @GET("pos/compound-recipes")
+    suspend fun getCompoundRecipes(): CompoundRecipesEnvelope
+
     @GET("pos/transactions/history")
     suspend fun getTransactionHistory(
         @Query("page") page: Int = 1,

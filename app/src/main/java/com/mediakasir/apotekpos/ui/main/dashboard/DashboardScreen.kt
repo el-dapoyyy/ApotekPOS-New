@@ -7,7 +7,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -23,6 +24,7 @@ import com.mediakasir.apotekpos.data.model.AlertData
 import com.mediakasir.apotekpos.data.model.DashboardData
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
+import com.mediakasir.apotekpos.ui.components.SwipeableItem
 import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.theme.*
 import com.mediakasir.apotekpos.utils.formatDate
@@ -143,6 +145,43 @@ fun DashboardScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // License expiry warning banner
+                    val daysLeft = license?.daysRemaining?.toInt() ?: Int.MAX_VALUE
+                    if (daysLeft in 0..14) {
+                        val isTrial = license?.isTrial == true
+                        val bannerColor = if (daysLeft <= 3) Color(0xFFFFEBEE) else Color(0xFFFFF8E1)
+                        val textColor = if (daysLeft <= 3) Error else Warning
+                        val icon = if (daysLeft <= 3) Icons.Outlined.Error else Icons.Outlined.Warning
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = bannerColor),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(22.dp))
+                                Column {
+                                    Text(
+                                        if (isTrial) "Masa Trial Segera Berakhir" else "Lisensi Segera Berakhir",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = textColor,
+                                    )
+                                    Text(
+                                        if (daysLeft <= 0) "Lisensi berakhir hari ini! Hubungi admin untuk perpanjangan."
+                                        else "Sisa $daysLeft hari. Segera perpanjang untuk menghindari gangguan layanan.",
+                                        fontSize = 12.sp,
+                                        color = textColor.copy(alpha = 0.85f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Stats Grid
                     dashboard?.let { data ->
                         Text("Ringkasan Hari Ini", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -154,17 +193,17 @@ fun DashboardScreen(
                                 modifier = Modifier.weight(1f),
                                 label = "Pendapatan",
                                 value = formatIDR(data.todayRevenue),
-                                icon = Icons.Filled.TrendingUp,
+                                icon = Icons.AutoMirrored.Outlined.TrendingUp,
                                 iconColor = Success,
-                                bgColor = Color(0xFFECFDF5)
+                                bgColor = StatBgGreen
                             )
                             StatCard(
                                 modifier = Modifier.weight(1f),
                                 label = "Transaksi",
                                 value = data.todayTransactions.toString(),
-                                icon = Icons.Filled.ShoppingCart,
+                                icon = Icons.Outlined.ShoppingCart,
                                 iconColor = Primary,
-                                bgColor = Color(0xFFE0F2F1)
+                                bgColor = StatBgTeal
                             )
                         }
                         Row(
@@ -175,17 +214,17 @@ fun DashboardScreen(
                                 modifier = Modifier.weight(1f),
                                 label = "Total Produk",
                                 value = data.totalProducts.toString(),
-                                icon = Icons.Filled.Inventory,
+                                icon = Icons.Outlined.Inventory,
                                 iconColor = Info,
-                                bgColor = Color(0xFFEFF6FF)
+                                bgColor = StatBgBlue
                             )
                             StatCard(
                                 modifier = Modifier.weight(1f),
                                 label = "Stok Hampir Habis",
                                 value = data.lowStockCount.toString(),
-                                icon = Icons.Filled.Warning,
+                                icon = Icons.Outlined.Warning,
                                 iconColor = Warning,
-                                bgColor = Color(0xFFFFFBEB)
+                                bgColor = StatBgAmber
                             )
                         }
                     }
@@ -245,6 +284,7 @@ fun StatCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlertsSection(
     alerts: AlertData,
@@ -254,19 +294,53 @@ fun AlertsSection(
     Text("⚠️ Peringatan", fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
     if (alerts.expiredBatches.isNotEmpty()) {
-        AlertCard(
-            title = "Batch Kadaluarsa (${alerts.expiredBatches.size})",
-            color = Error,
-            items = alerts.expiredBatches.map { "${it.productName} - ${it.batchNumber}" }
+        val swipeState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) {
+                    onAcknowledgeExpiry()
+                    true
+                } else false
+            },
         )
+        SwipeableItem(
+            state = swipeState,
+            enableEndToStart = true,
+            enableStartToEnd = false,
+            endToStartIcon = Icons.Outlined.Check,
+            endToStartLabel = "Selesai",
+            endToStartColor = Error,
+        ) {
+            AlertCard(
+                title = "Batch Kadaluarsa (${alerts.expiredBatches.size})",
+                color = Error,
+                items = alerts.expiredBatches.map { "${it.productName} - ${it.batchNumber}" }
+            )
+        }
     }
 
     if (alerts.expiringBatches.isNotEmpty()) {
-        AlertCard(
-            title = "Mendekati Kadaluarsa (${alerts.expiringBatches.size})",
-            color = Warning,
-            items = alerts.expiringBatches.map { "${it.productName} - Exp: ${formatDate(it.expiryDate)}" }
+        val swipeState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) {
+                    onAcknowledgeExpiry()
+                    true
+                } else false
+            },
         )
+        SwipeableItem(
+            state = swipeState,
+            enableEndToStart = true,
+            enableStartToEnd = false,
+            endToStartIcon = Icons.Outlined.Check,
+            endToStartLabel = "Selesai",
+            endToStartColor = Warning,
+        ) {
+            AlertCard(
+                title = "Mendekati Kadaluarsa (${alerts.expiringBatches.size})",
+                color = Warning,
+                items = alerts.expiringBatches.map { "${it.productName} - Exp: ${formatDate(it.expiryDate)}" }
+            )
+        }
     }
 
     if (alerts.expiredBatches.isNotEmpty() || alerts.expiringBatches.isNotEmpty()) {
@@ -276,11 +350,28 @@ fun AlertsSection(
     }
 
     if (alerts.lowStockProducts.isNotEmpty()) {
-        AlertCard(
-            title = "Stok Hampir Habis (${alerts.lowStockProducts.size})",
-            color = Info,
-            items = alerts.lowStockProducts.map { "${it.name} - Stok: ${it.currentStock}" }
+        val swipeState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value == SwipeToDismissBoxValue.EndToStart) {
+                    onAcknowledgeStock()
+                    true
+                } else false
+            },
         )
+        SwipeableItem(
+            state = swipeState,
+            enableEndToStart = true,
+            enableStartToEnd = false,
+            endToStartIcon = Icons.Outlined.Check,
+            endToStartLabel = "Selesai",
+            endToStartColor = Info,
+        ) {
+            AlertCard(
+                title = "Stok Hampir Habis (${alerts.lowStockProducts.size})",
+                color = Info,
+                items = alerts.lowStockProducts.map { "${it.name} - Stok: ${it.currentStock}" }
+            )
+        }
         TextButton(onClick = onAcknowledgeStock) {
             Text("Tandai alert stok selesai")
         }

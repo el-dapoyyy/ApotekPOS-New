@@ -223,6 +223,12 @@ data class Product(
     val discountLabel: String? = null,
     /** Label untuk menampilkan promo (e.g. "Beli 2 dapat 1"). */
     val promoLabel: String? = null,
+    /** Tanggal kadaluarsa batch terdekat (ISO format). */
+    val nearestExpiryDate: String? = null,
+    /** True jika batch terdekat sudah expired. */
+    val isNearestExpired: Boolean = false,
+    /** True jika batch terdekat kadaluarsa dalam ≤90 hari. */
+    val isNearestExpiringSoon: Boolean = false,
 )
 
 data class ProductCreate(

@@ -28,13 +28,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LocalHospital
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Vaccines
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Vaccines
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -280,17 +280,17 @@ private fun LoginBrandingCarousel(modifier: Modifier = Modifier) {
 
     val slides = listOf(
         Triple(
-            Icons.Filled.LocalHospital,
+            Icons.Outlined.LocalHospital,
             stringResource(R.string.app_name),
             stringResource(R.string.app_tagline),
         ),
         Triple(
-            Icons.Filled.Vaccines,
+            Icons.Outlined.Vaccines,
             stringResource(R.string.premium_edition),
             stringResource(R.string.login_subtitle),
         ),
         Triple(
-            Icons.Filled.Favorite,
+            Icons.Outlined.Favorite,
             stringResource(R.string.wordmark_prefix) + stringResource(R.string.wordmark_suffix),
             stringResource(R.string.splash_footer),
         ),
@@ -381,7 +381,7 @@ private fun LoginFormBody(
             placeholder = { Text(stringResource(R.string.login_email_placeholder)) },
             leadingIcon = {
                 Icon(
-                    Icons.Filled.Person,
+                    Icons.Outlined.Person,
                     contentDescription = null,
                     tint = if (error != null) MaterialTheme.colorScheme.error else CardSubtitle,
                 )
@@ -414,7 +414,7 @@ private fun LoginFormBody(
             placeholder = { Text(stringResource(R.string.login_password_placeholder)) },
             leadingIcon = {
                 Icon(
-                    Icons.Filled.Lock,
+                    Icons.Outlined.Lock,
                     contentDescription = null,
                     tint = if (error != null) MaterialTheme.colorScheme.error else CardSubtitle,
                 )
@@ -422,7 +422,7 @@ private fun LoginFormBody(
             trailingIcon = {
                 IconButton(onClick = onPasswordVisibleToggle) {
                     Icon(
-                        if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                         contentDescription = null,
                     )
                 }

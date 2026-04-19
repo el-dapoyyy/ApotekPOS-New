@@ -20,13 +20,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -86,6 +86,8 @@ fun PaymentPanel(
     viewModel: POSViewModel,
     onCheckout: () -> Unit,
     isProcessing: Boolean = false,
+    checkoutLocked: Boolean = false,
+    checkoutLockMessage: String = "",
     modifier: Modifier = Modifier,
 ) {
     val subtotal = viewModel.getSubtotal()
@@ -165,7 +167,7 @@ fun PaymentPanel(
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                     // Pelanggan
                     InfoActionRow(
-                        icon = { Icon(Icons.Filled.AccountCircle, null, modifier = Modifier.size(16.dp), tint = if (selectedCustomer != null) ApoPrimary else TextMuted) },
+                        icon = { Icon(Icons.Outlined.AccountCircle, null, modifier = Modifier.size(16.dp), tint = if (selectedCustomer != null) ApoPrimary else TextMuted) },
                         label = "Pelanggan",
                         value = selectedCustomer?.name ?: "Umum",
                         valueTint = if (selectedCustomer != null) ApoPrimary else TextSecondary,
@@ -176,7 +178,7 @@ fun PaymentPanel(
                     // Voucher/Diskon
                     val activeDiscount = selectedDiscountId?.let { id -> discounts.find { it.id == id } }
                     InfoActionRow(
-                        icon = { Icon(Icons.Filled.LocalOffer, null, modifier = Modifier.size(16.dp), tint = if (activeDiscount != null) Success else TextMuted) },
+                        icon = { Icon(Icons.Outlined.LocalOffer, null, modifier = Modifier.size(16.dp), tint = if (activeDiscount != null) Success else TextMuted) },
                         label = "Voucher",
                         value = activeDiscount?.let { d ->
                             when (d.type?.lowercase()) {
@@ -196,7 +198,7 @@ fun PaymentPanel(
                     // Promo
                     val totalPromos = promotions.size
                     InfoActionRow(
-                        icon = { Icon(Icons.Filled.Star, null, modifier = Modifier.size(16.dp), tint = if (relevantPromoCount > 0) Warning else TextMuted) },
+                        icon = { Icon(Icons.Outlined.Star, null, modifier = Modifier.size(16.dp), tint = if (relevantPromoCount > 0) Warning else TextMuted) },
                         label = "Promo",
                         value = when {
                             relevantPromoCount > 0 -> "$relevantPromoCount cocok"
@@ -294,7 +296,7 @@ fun PaymentPanel(
                 Button(
                     onClick = onCheckout,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    enabled = !isProcessing && cart.isNotEmpty() && change >= 0,
+                    enabled = !isProcessing && !checkoutLocked && cart.isNotEmpty() && change >= 0,
                     colors = ButtonDefaults.buttonColors(containerColor = ApoPrimary, disabledContainerColor = Color(0xFFD1D5DB)),
                     shape = RoundedCornerShape(12.dp),
                 ) {
@@ -303,10 +305,19 @@ fun PaymentPanel(
                         Spacer(Modifier.width(8.dp))
                         Text("Memproses...", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     } else {
-                        Icon(Icons.Filled.CheckCircle, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Bayar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+                if (checkoutLocked && checkoutLockMessage.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = checkoutLockMessage,
+                        color = Error,
+                        fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -386,7 +397,7 @@ private fun InfoActionRow(
             Text(value, fontSize = 11.sp, color = valueTint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 100.dp))
             if (trailingClear) {
                 Icon(
-                    Icons.Filled.Close,
+                    Icons.Outlined.Close,
                     contentDescription = "Hapus",
                     modifier = Modifier.size(15.dp).clickable { onClear() },
                     tint = TextMuted,
@@ -426,7 +437,7 @@ private fun CustomerPickerDialog(
                     placeholder = { Text("Cari nama / telepon...", fontSize = 12.sp) },
                     leadingIcon = {
                         if (searching) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Filled.Search, null, modifier = Modifier.size(18.dp))
+                        else Icon(Icons.Outlined.Search, null, modifier = Modifier.size(18.dp))
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -474,7 +485,7 @@ private fun CustomerRow(name: String, sub: String, selected: Boolean, onClick: (
             Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (selected) ApoPrimary else TextPrimary)
             if (sub.isNotBlank()) Text(sub, fontSize = 10.sp, color = TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (selected) Icon(Icons.Filled.Check, null, modifier = Modifier.size(16.dp), tint = ApoPrimary)
+        if (selected) Icon(Icons.Outlined.Check, null, modifier = Modifier.size(16.dp), tint = ApoPrimary)
     }
 }
 
@@ -560,7 +571,7 @@ private fun DiscountPickerDialog(
                             }
                             Spacer(Modifier.width(8.dp))
                             if (isSelected) {
-                                Icon(Icons.Filled.Check, null, modifier = Modifier.size(20.dp), tint = Success)
+                                Icon(Icons.Outlined.Check, null, modifier = Modifier.size(20.dp), tint = Success)
                             } else if (!eligible) {
                                 Text("Kurang", fontSize = 9.sp, color = TextMuted)
                             } else {

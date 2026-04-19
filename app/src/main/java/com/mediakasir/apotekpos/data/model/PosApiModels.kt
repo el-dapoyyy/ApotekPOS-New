@@ -95,6 +95,13 @@ fun PosProductDto.toProduct(branchId: String): Product {
         first["name"]?.toString()?.takeIf { it.isNotBlank() } ?: "Promo"
     }
 
+    val expDateStr = nearestExpiry?.expiredDate?.take(10)
+    val expDate = expDateStr?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    val today = java.time.LocalDate.now()
+    val isExpired = expDate != null && expDate.isBefore(today)
+    val isExpiringSoon = expDate != null && !isExpired &&
+        java.time.temporal.ChronoUnit.DAYS.between(today, expDate) <= 90
+
     return Product(
         id = id.toString(),
         sku = code,
@@ -110,6 +117,9 @@ fun PosProductDto.toProduct(branchId: String): Product {
         isActive = true,
         discountLabel = discountLabel,
         promoLabel = promoLabel,
+        nearestExpiryDate = expDateStr,
+        isNearestExpired = isExpired,
+        isNearestExpiringSoon = isExpiringSoon,
     )
 }
 
@@ -201,15 +211,51 @@ data class PosTransactionSyncDto(
     val items: List<PosTransactionLineDto>,
     val payments: List<PosPaymentLineDto>? = null,
 )
+data class RacikanIngredientDto(
+    @SerializedName("product_id") val productId: Int,
+    @SerializedName("quantity_needed") val quantityNeeded: Double,
+)
 
 data class PosTransactionLineDto(
-    @SerializedName("product_id") val productId: Int,
+    @SerializedName("product_id") val productId: Int? = null,
     @SerializedName("batch_id") val batchId: Int? = null,
     val quantity: Double,
     @SerializedName("unit_price") val unitPrice: Double,
     val discount: Double = 0.0,
     val subtotal: Double,
     @SerializedName("is_racikan") val isRacikan: Boolean? = false,
+    @SerializedName("compound_recipe_id") val compoundRecipeId: Int? = null,
+    @SerializedName("item_name") val itemName: String? = null,
+    val ingredients: List<RacikanIngredientDto>? = null,
+)
+
+// --- Compound Recipes (Racikan) ---
+
+data class CompoundRecipeItemDto(
+    val id: Int,
+    @SerializedName("product_id") val productId: Int? = null,
+    @SerializedName("product_name") val productName: String,
+    @SerializedName("quantity_needed") val quantityNeeded: Double,
+    @SerializedName("unit_price") val unitPrice: Double,
+    val subtotal: Double,
+)
+
+data class CompoundRecipeDto(
+    val id: Int,
+    val name: String,
+    @SerializedName("aturan_pakai") val aturanPakai: String? = null,
+    @SerializedName("quantity_produced") val quantityProduced: Int = 1,
+    @SerializedName("total_price") val totalPrice: Double,
+    @SerializedName("tusla_amount") val tuslaAmount: Double = 0.0,
+    @SerializedName("embalse_amount") val embalseAmount: Double = 0.0,
+    @SerializedName("is_active") val isActive: Boolean = true,
+    val items: List<CompoundRecipeItemDto> = emptyList(),
+)
+
+data class CompoundRecipesEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<CompoundRecipeDto>? = null,
 )
 
 data class PosPaymentLineDto(
@@ -243,6 +289,69 @@ data class TransactionSyncSummary(
     val total: Int? = null,
     val success: Int? = null,
     val failed: Int? = null,
+)
+
+// --- Cash expenses: sync ---
+
+data class CashExpenseSyncRequest(
+    val expenses: List<CashExpenseSyncDto> = emptyList(),
+    val audits: List<CashExpenseAuditSyncDto> = emptyList(),
+)
+
+data class CashExpenseSyncDto(
+    @SerializedName("local_cash_expense_id") val localCashExpenseId: String,
+    @SerializedName("server_cash_expense_id") val serverCashExpenseId: Int? = null,
+    @SerializedName("shift_id") val shiftId: String,
+    @SerializedName("branch_id") val branchId: String,
+    @SerializedName("cashier_id") val cashierId: String,
+    val amount: Double,
+    val category: String,
+    val note: String? = null,
+    @SerializedName("receipt_photo_path") val receiptPhotoPath: String? = null,
+    @SerializedName("created_at") val createdAt: String,
+)
+
+data class CashExpenseAuditSyncDto(
+    @SerializedName("local_audit_id") val localAuditId: String,
+    @SerializedName("server_audit_id") val serverAuditId: Int? = null,
+    @SerializedName("cash_expense_id") val cashExpenseId: String,
+    @SerializedName("shift_id") val shiftId: String,
+    val action: String,
+    @SerializedName("actor_cashier_id") val actorCashierId: String,
+    @SerializedName("old_amount") val oldAmount: Double,
+    @SerializedName("new_amount") val newAmount: Double? = null,
+    @SerializedName("old_category") val oldCategory: String,
+    @SerializedName("new_category") val newCategory: String? = null,
+    @SerializedName("old_note") val oldNote: String? = null,
+    @SerializedName("new_note") val newNote: String? = null,
+    @SerializedName("old_receipt_photo_path") val oldReceiptPhotoPath: String? = null,
+    @SerializedName("new_receipt_photo_path") val newReceiptPhotoPath: String? = null,
+    @SerializedName("created_at") val createdAt: String,
+)
+
+data class CashExpenseSyncEnvelope(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: CashExpenseSyncPayload? = null,
+)
+
+data class CashExpenseSyncPayload(
+    @SerializedName("expense_results") val expenseResults: List<CashExpenseSyncResult>? = null,
+    @SerializedName("audit_results") val auditResults: List<CashExpenseAuditSyncResult>? = null,
+)
+
+data class CashExpenseSyncResult(
+    @SerializedName("local_cash_expense_id") val localCashExpenseId: String? = null,
+    @SerializedName("server_cash_expense_id") val serverCashExpenseId: Int? = null,
+    val success: Boolean? = null,
+    val message: String? = null,
+)
+
+data class CashExpenseAuditSyncResult(
+    @SerializedName("local_audit_id") val localAuditId: String? = null,
+    @SerializedName("server_audit_id") val serverAuditId: Int? = null,
+    val success: Boolean? = null,
+    val message: String? = null,
 )
 
 // --- Transactions: history ---

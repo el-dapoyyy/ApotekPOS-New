@@ -271,8 +271,47 @@ object ThermalPrinterManager {
         val totalSales: Double,
         val totalCashSales: Double,
         val totalNonCashSales: Double,
+        val totalQrisSales: Double,
+        val totalCashOut: Double,
         val totalTransactions: Int,
+        val topSellingProducts: List<TopSellingLine> = emptyList(),
     )
+
+    data class TopSellingLine(
+        val name: String,
+        val qty: Double,
+    )
+
+    data class ShiftOpenReceiptData(
+        val pharmacyName: String,
+        val shiftType: String,
+        val cashierName: String,
+        val branchName: String,
+        val startedAt: String,
+        val startingCash: Double,
+    )
+
+    @SuppressLint("MissingPermission")
+    suspend fun printShiftOpenSlip(
+        context: Context,
+        device: BluetoothDevice,
+        data: ShiftOpenReceiptData,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val bm = context.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
+            val socket = bm.adapter
+                .getRemoteDevice(device.address)
+                .createRfcommSocketToServiceRecord(UUID.fromString(SPP_UUID))
+            socket.connect()
+            try {
+                val bytes = buildShiftOpenSlipBytes(data)
+                socket.outputStream.write(bytes)
+                socket.outputStream.flush()
+            } finally {
+                socket.close()
+            }
+        }
+    }
 
     @SuppressLint("MissingPermission")
     suspend fun printShiftReport(
@@ -371,6 +410,7 @@ object ThermalPrinterManager {
         out.printLine(padLine("Total Transaksi", "${report.totalTransactions}"))
         out.printLine(padLine("Total Penjualan", formatIDR(report.totalSales)))
         out.printLine(padLine("  Tunai", formatIDR(report.totalCashSales)))
+        out.printLine(padLine("  QRIS", formatIDR(report.totalQrisSales)))
         out.printLine(padLine("  Non-Tunai", formatIDR(report.totalNonCashSales)))
         out.printLine("--------------------------------")
 
@@ -380,6 +420,7 @@ object ThermalPrinterManager {
         out.write(ESC_BOLD_OFF)
         out.printLine(padLine("Kas Awal", formatIDR(report.startingCash)))
         out.printLine(padLine("Pemasukan Tunai", formatIDR(report.totalCashSales)))
+        out.printLine(padLine("Kas Keluar (CP)", formatIDR(report.totalCashOut)))
         out.printLine(padLine("Kas Expected", formatIDR(report.expectedCash)))
         out.printLine(padLine("Kas Aktual", formatIDR(report.endingCash)))
         out.write(ESC_BOLD_ON)
@@ -387,6 +428,16 @@ object ThermalPrinterManager {
         val diffPrefix = if (report.difference > 0) "+" else ""
         out.printLine(padLine(diffLabel, "$diffPrefix${formatIDR(report.difference)}"))
         out.write(ESC_BOLD_OFF)
+
+        if (report.topSellingProducts.isNotEmpty()) {
+            out.printLine("--------------------------------")
+            out.write(ESC_BOLD_ON)
+            out.printLine("OBAT PALING LAKU")
+            out.write(ESC_BOLD_OFF)
+            report.topSellingProducts.forEachIndexed { i, p ->
+                out.printLine(padLine("${i + 1}. ${p.name}", "${p.qty}"))
+            }
+        }
 
         // Footer
         out.printLine("================================")
@@ -398,6 +449,38 @@ object ThermalPrinterManager {
         out.write(ESC_FEED_3)
         out.write(ESC_CUT)
 
+        return out.toByteArray()
+    }
+
+    private fun buildShiftOpenSlipBytes(data: ShiftOpenReceiptData): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(ESC_INIT)
+
+        out.write(ESC_ALIGN_CENTER)
+        out.write(ESC_BOLD_ON)
+        out.write(ESC_DOUBLE_HEIGHT_ON)
+        out.printLine(data.pharmacyName)
+        out.write(ESC_NORMAL)
+        out.write(ESC_BOLD_OFF)
+        out.printLine("BUKA SHIFT")
+        out.printLine("================================")
+
+        out.write(ESC_ALIGN_LEFT)
+        out.printLine("Shift    : ${data.shiftType.replaceFirstChar { it.uppercase() }}")
+        out.printLine("Kasir    : ${data.cashierName}")
+        if (data.branchName.isNotBlank()) out.printLine("Cabang   : ${data.branchName}")
+        out.printLine("Waktu    : ${formatDateTime(data.startedAt)}")
+        out.printLine("--------------------------------")
+        out.write(ESC_BOLD_ON)
+        out.printLine(padLine("Modal Awal", formatIDR(data.startingCash)))
+        out.write(ESC_BOLD_OFF)
+        out.printLine("================================")
+        out.write(ESC_ALIGN_CENTER)
+        out.printLine("Simpan struk ini untuk audit kas")
+        out.printLine("")
+
+        out.write(ESC_FEED_3)
+        out.write(ESC_CUT)
         return out.toByteArray()
     }
 }

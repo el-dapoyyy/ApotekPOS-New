@@ -15,6 +15,9 @@ interface LocalShiftDao {
     @Query("SELECT * FROM local_shifts WHERE id = :shiftId")
     suspend fun getShift(shiftId: String): LocalShiftEntity?
 
+    @Query("SELECT * FROM local_shifts WHERE endedAt IS NULL ORDER BY createdAtEpochMs DESC LIMIT 1")
+    suspend fun getAnyActiveShift(): LocalShiftEntity?
+
     /** Active shift = started but not yet ended, for this cashier today. */
     @Query("""
         SELECT * FROM local_shifts 

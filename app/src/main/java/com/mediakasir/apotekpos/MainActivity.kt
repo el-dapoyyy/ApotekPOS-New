@@ -22,11 +22,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Inventory
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.Inventory
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -103,14 +103,16 @@ fun ApotekNavHost() {
 
     val license by viewModel.license.collectAsState()
     val user by viewModel.user.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
+    val pendingSyncCount by viewModel.pendingSyncCount.collectAsState()
 
     val navItems = remember(user?.role) {
         val all = listOf(
-            NavItem(R.string.nav_pos, Icons.Filled.ShoppingCart, Screen.POS.route),
-            NavItem(R.string.nav_stock, Icons.Filled.Inventory, Screen.Stok.route),
-            NavItem(R.string.nav_laporan, Icons.Filled.Analytics, Screen.Laporan.route),
-            NavItem(R.string.nav_history, Icons.AutoMirrored.Filled.ReceiptLong, Screen.History.route),
-            NavItem(R.string.nav_settings, Icons.Filled.Settings, Screen.Settings.route),
+            NavItem(R.string.nav_pos, Icons.Outlined.ShoppingCart, Screen.POS.route),
+            NavItem(R.string.nav_stock, Icons.Outlined.Inventory, Screen.Stok.route),
+            NavItem(R.string.nav_laporan, Icons.Outlined.Analytics, Screen.Laporan.route),
+            NavItem(R.string.nav_history, Icons.AutoMirrored.Outlined.ReceiptLong, Screen.History.route),
+            NavItem(R.string.nav_settings, Icons.Outlined.Settings, Screen.Settings.route),
         )
         if (user?.role?.trim()?.equals("kasir", ignoreCase = true) == true) {
             val allow = setOf(Screen.POS.route, Screen.Stok.route, Screen.Laporan.route, Screen.History.route, Screen.Settings.route)

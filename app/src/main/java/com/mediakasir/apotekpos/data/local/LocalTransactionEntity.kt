@@ -50,6 +50,8 @@ data class LocalTransactionItemEntity(
     val subtotal: Double,
     val unit: String = "pcs",
     val isRacikan: Boolean = false,
+    val compoundRecipeId: Int? = null,
+    val itemName: String? = null,
 )
 
 @Entity(tableName = "local_payments")

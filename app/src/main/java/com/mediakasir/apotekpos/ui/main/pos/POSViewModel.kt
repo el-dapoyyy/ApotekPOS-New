@@ -4,7 +4,11 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import com.mediakasir.apotekpos.data.local.LocalCashExpenseAuditDao
+import com.mediakasir.apotekpos.data.local.LocalCashExpenseAuditEntity
 import com.mediakasir.apotekpos.data.local.LocalPaymentEntity
+import com.mediakasir.apotekpos.data.local.LocalCashExpenseDao
+import com.mediakasir.apotekpos.data.local.LocalCashExpenseEntity
 import com.mediakasir.apotekpos.data.local.LocalShiftDao
 import com.mediakasir.apotekpos.data.local.LocalShiftEntity
 import com.mediakasir.apotekpos.data.local.LocalTransactionDao
@@ -17,6 +21,7 @@ import com.mediakasir.apotekpos.data.local.toCachedEntity
 import com.mediakasir.apotekpos.data.local.toProductModel
 import com.mediakasir.apotekpos.data.sync.ConnectivityObserver
 import com.mediakasir.apotekpos.data.sync.SyncManager
+import com.mediakasir.apotekpos.data.model.CompoundRecipeDto
 import com.mediakasir.apotekpos.data.model.PaymentDetail
 import com.mediakasir.apotekpos.data.model.PosCustomerDto
 import com.mediakasir.apotekpos.data.model.PosDiscountDto
@@ -36,6 +41,7 @@ import com.mediakasir.apotekpos.data.model.toProduct
 import com.mediakasir.apotekpos.data.network.ApiService
 import com.mediakasir.apotekpos.data.repository.SessionRepository
 import com.mediakasir.apotekpos.util.NetworkStatus
+import com.mediakasir.apotekpos.util.ThermalPrinterManager
 import com.mediakasir.apotekpos.util.formatApiThrowable
 import com.mediakasir.apotekpos.utils.parseMoneyInputToDouble
 import com.mediakasir.apotekpos.util.isLikelyNetworkFailure
@@ -59,6 +65,9 @@ private const val AUTH_ME_TIMEOUT_MS = 25_000L
 data class CartItem(
     val product: Product,
     val qty: Int,
+    val isRacikan: Boolean = false,
+    val compoundRecipeId: Int? = null,
+    val compoundRecipeName: String? = null,
 )
 
 data class PaymentEntry(
@@ -66,6 +75,16 @@ data class PaymentEntry(
     val method: String = "Tunai",
     val amount: String = "",
     val reference: String = "",
+)
+
+data class TopSellingProduct(
+    val name: String,
+    val qty: Double,
+)
+
+data class CashOutByCategory(
+    val category: String,
+    val total: Double,
 )
 
 data class ShiftSummaryData(
@@ -81,7 +100,11 @@ data class ShiftSummaryData(
     val totalSales: Double,
     val totalCashSales: Double,
     val totalNonCashSales: Double,
+    val totalQrisSales: Double,
+    val totalCashOut: Double,
     val totalTransactions: Int,
+    val topSellingProducts: List<TopSellingProduct>,
+    val cashOutByCategory: List<CashOutByCategory> = emptyList(),
 )
 
 @HiltViewModel
@@ -91,6 +114,8 @@ class POSViewModel @Inject constructor(
     private val pendingSyncDao: PendingSyncDao,
     private val localTransactionDao: LocalTransactionDao,
     private val localShiftDao: LocalShiftDao,
+    private val localCashExpenseDao: LocalCashExpenseDao,
+    private val localCashExpenseAuditDao: LocalCashExpenseAuditDao,
     private val syncManager: SyncManager,
     private val connectivityObserver: ConnectivityObserver,
     private val gson: Gson,
@@ -172,9 +197,24 @@ class POSViewModel @Inject constructor(
     private val _shiftSummary = MutableStateFlow<ShiftSummaryData?>(null)
     val shiftSummary: StateFlow<ShiftSummaryData?> = _shiftSummary.asStateFlow()
 
+    private val _cashOutHistory = MutableStateFlow<List<LocalCashExpenseEntity>>(emptyList())
+    val cashOutHistory: StateFlow<List<LocalCashExpenseEntity>> = _cashOutHistory.asStateFlow()
+
+    private val _cashOutTotal = MutableStateFlow(0.0)
+    val cashOutTotal: StateFlow<Double> = _cashOutTotal.asStateFlow()
+
+    private val _cashOutLoading = MutableStateFlow(false)
+    val cashOutLoading: StateFlow<Boolean> = _cashOutLoading.asStateFlow()
+
     /** True when the active shift has run past its scheduled end hour. */
     private val _shiftExpiredWarning = MutableStateFlow(false)
     val shiftExpiredWarning: StateFlow<Boolean> = _shiftExpiredWarning.asStateFlow()
+
+    private val _shiftSoftAlert = MutableStateFlow(false)
+    val shiftSoftAlert: StateFlow<Boolean> = _shiftSoftAlert.asStateFlow()
+
+    private val _shiftHardLock = MutableStateFlow(false)
+    val shiftHardLock: StateFlow<Boolean> = _shiftHardLock.asStateFlow()
 
     private val _pendingSyncCount = MutableStateFlow(0)
     val pendingSyncCount: StateFlow<Int> = _pendingSyncCount.asStateFlow()
@@ -199,6 +239,18 @@ class POSViewModel @Inject constructor(
     /** Non-kasir: blokir katalog; tetap true setelah alert ditutup. */
     private val _posKasirCatalogBlocked = MutableStateFlow(false)
     val posKasirCatalogBlocked: StateFlow<Boolean> = _posKasirCatalogBlocked.asStateFlow()
+
+    private val _compoundRecipes = MutableStateFlow<List<CompoundRecipeDto>>(emptyList())
+    val compoundRecipes: StateFlow<List<CompoundRecipeDto>> = _compoundRecipes.asStateFlow()
+
+    private val _isLoadingRacikan = MutableStateFlow(false)
+    val isLoadingRacikan: StateFlow<Boolean> = _isLoadingRacikan.asStateFlow()
+
+    private val _racikanError = MutableStateFlow<String?>(null)
+    val racikanError: StateFlow<String?> = _racikanError.asStateFlow()
+
+    private val _showRacikanDialog = MutableStateFlow(false)
+    val showRacikanDialog: StateFlow<Boolean> = _showRacikanDialog.asStateFlow()
 
     private val _alertCount = MutableStateFlow(0)
     val alertCount: StateFlow<Int> = _alertCount.asStateFlow()
@@ -225,6 +277,8 @@ class POSViewModel @Inject constructor(
         // ── Startup: rescue any transactions left at "syncing" by a previous crash ──
         viewModelScope.launch {
             localTransactionDao.resetStuckSyncing()
+            localCashExpenseDao.resetStuckSyncing()
+            localCashExpenseAuditDao.resetStuckSyncing()
         }
         viewModelScope.launch {
             localTransactionDao.observePendingCount().collect { _pendingSyncCount.value = it }
@@ -236,6 +290,7 @@ class POSViewModel @Inject constructor(
                 if (isOnline && wasOffline) {
                     // Priority 1: drain pending transactions
                     OfflineSyncScheduler.enqueueTransactionSync(appContext)
+                    OfflineSyncScheduler.enqueueCashExpenseSync(appContext)
                     // Priority 2: refresh stock from server in background
                     val branchId = lastBranchId
                     if (branchId.isNotBlank()) {
@@ -256,7 +311,9 @@ class POSViewModel @Inject constructor(
         }
         syncManager.startObserving()
         OfflineSyncScheduler.schedulePeriodicSync(appContext)
+        OfflineSyncScheduler.schedulePeriodicCashExpenseSync(appContext)
         OfflineSyncScheduler.schedulePeriodicStockSync(appContext)
+        OfflineSyncScheduler.schedulePeriodicShiftAlert(appContext)
     }
 
     /** Called when user taps the pending-count badge. Loads error details then shows dialog. */
@@ -384,14 +441,20 @@ class POSViewModel @Inject constructor(
      *  malam (22–23) → expires when we enter daytime again (07:00–21:59)
      */
     private fun checkShiftExpiry() {
-        val shift = _activeShift.value ?: run { _shiftExpiredWarning.value = false; return }
-        val h = java.time.LocalTime.now().hour
-        _shiftExpiredWarning.value = when (shift.shiftType) {
-            "pagi"  -> h >= 15
-            "sore"  -> h >= 22
-            "malam" -> h in 7..21   // next-day morning/afternoon window
-            else    -> false
+        val shift = _activeShift.value ?: run {
+            _shiftExpiredWarning.value = false
+            _shiftSoftAlert.value = false
+            _shiftHardLock.value = false
+            return
         }
+        val elapsedHours = runCatching {
+            val start = Instant.parse(shift.startedAt)
+            java.time.Duration.between(start, Instant.now()).toMinutes() / 60.0
+        }.getOrDefault(0.0)
+
+        _shiftSoftAlert.value = elapsedHours >= 8.0 && elapsedHours < 12.0
+        _shiftHardLock.value = elapsedHours >= 12.0
+        _shiftExpiredWarning.value = _shiftHardLock.value
     }
 
     fun checkAlerts() {
@@ -549,6 +612,8 @@ class POSViewModel @Inject constructor(
                 }
 
                 _shiftBlocking.value = false
+                checkShiftExpiry()
+                tryAutoPrintShiftOpen(shift = _activeShift.value ?: shift, branchName = branchId)
             } catch (e: Exception) {
                 val msg = formatApiThrowable(e, gson)
                 _shiftDialogError.value = msg
@@ -715,13 +780,22 @@ class POSViewModel @Inject constructor(
         } else {
             _cart.value = _cart.value + CartItem(product, 1)
         }
+        // Warn if batch terdekat kadaluarsa
+        if (product.isNearestExpired) {
+            _error.value = "⚠️ ${product.name}: batch terdekat sudah KADALUARSA (${product.nearestExpiryDate})"
+        } else if (product.isNearestExpiringSoon) {
+            _error.value = "⚠️ ${product.name}: mendekati kadaluarsa (${product.nearestExpiryDate})"
+        }
         return null
     }
 
     fun updateQty(productId: String, delta: Int): String? {
         val item = _cart.value.find { it.product.id == productId } ?: return null
         val newQty = item.qty + delta
-        if (newQty <= 0) return null
+        if (newQty <= 0) {
+            removeFromCart(productId)
+            return null
+        }
         if (newQty > item.product.currentStock) return "Stok tersedia hanya ${item.product.currentStock}"
         _cart.value = _cart.value.map {
             if (it.product.id == productId) it.copy(qty = newQty) else it
@@ -731,6 +805,103 @@ class POSViewModel @Inject constructor(
 
     fun removeFromCart(productId: String) {
         _cart.value = _cart.value.filter { it.product.id != productId }
+    }
+
+    /**
+     * Called after a barcode scan. Looks up the product in the in-memory list first (instant),
+     * falls back to an API search if not found locally. Adds the matched product directly to
+     * the cart — the cashier never needs to type or tap anything.
+     */
+    fun addByBarcode(barcode: String, branchId: String) {
+        val code = barcode.trim()
+        if (code.isBlank()) return
+        // Fast path: find in already-loaded products
+        val local = _products.value.find { it.barcode.equals(code, ignoreCase = true) }
+        if (local != null) {
+            val err = addToCart(local)
+            if (err != null) _error.value = err
+            return
+        }
+        // Slow path: query server
+        viewModelScope.launch {
+            _isLoadingProducts.value = true
+            try {
+                val env = api.searchProducts(q = code, limit = 10)
+                val dto = env.data?.products
+                    ?.find { it.barcode.equals(code, ignoreCase = true) }
+                    ?: env.data?.products?.firstOrNull()
+                if (dto != null) {
+                    val now = System.currentTimeMillis()
+                    productCacheDao.insertAll(listOf(dto.toCachedEntity(branchId, now)))
+                    val p = dto.toProduct(branchId)
+                    if (_products.value.none { it.id == p.id }) {
+                        _products.value = _products.value + p
+                    }
+                    val err = addToCart(p)
+                    if (err != null) _error.value = err
+                } else {
+                    _error.value = "Produk dengan barcode \"$code\" tidak ditemukan"
+                }
+            } catch (e: Exception) {
+                _error.value = "Gagal scan barcode: ${e.message}"
+            } finally {
+                _isLoadingProducts.value = false
+            }
+        }
+    }
+
+    fun showRacikanDialog() {
+        _showRacikanDialog.value = true
+        if (_compoundRecipes.value.isEmpty()) loadCompoundRecipes()
+    }
+
+    fun hideRacikanDialog() {
+        _showRacikanDialog.value = false
+    }
+
+    fun loadCompoundRecipes() {
+        viewModelScope.launch {
+            _isLoadingRacikan.value = true
+            _racikanError.value = null
+            try {
+                val env = api.getCompoundRecipes()
+                _compoundRecipes.value = env.data?.filter { it.isActive } ?: emptyList()
+                if (_compoundRecipes.value.isEmpty()) {
+                    _racikanError.value = "Tidak ada resep racikan aktif ditemukan"
+                }
+            } catch (e: Exception) {
+                _racikanError.value = "Gagal memuat: ${e.message}"
+            } finally {
+                _isLoadingRacikan.value = false
+            }
+        }
+    }
+
+    fun addRacikanToCart(recipe: CompoundRecipeDto) {
+        val sentinelId = "racikan_${recipe.id}"
+        val sentinelProduct = Product(
+            id = sentinelId,
+            name = recipe.name,
+            category = "Racikan",
+            unit = "bungkus",
+            sellPrice = recipe.totalPrice,
+            currentStock = 999,
+        )
+        val existing = _cart.value.find { it.product.id == sentinelId }
+        if (existing != null) {
+            _cart.value = _cart.value.map {
+                if (it.product.id == sentinelId) it.copy(qty = it.qty + 1) else it
+            }
+        } else {
+            _cart.value = _cart.value + CartItem(
+                product = sentinelProduct,
+                qty = 1,
+                isRacikan = true,
+                compoundRecipeId = recipe.id,
+                compoundRecipeName = recipe.name,
+            )
+        }
+        hideRacikanDialog()
     }
 
     fun setDiscount(d: String) {
@@ -875,6 +1046,14 @@ class POSViewModel @Inject constructor(
             _isProcessing.value = true
             _error.value = null
             try {
+                if (_activeShift.value == null || _shiftBlocking.value) {
+                    _error.value = "Shift belum dibuka. Input modal awal dulu sebelum transaksi."
+                    return@launch
+                }
+                if (_shiftHardLock.value) {
+                    _error.value = "Batas waktu shift berakhir. Tutup shift dulu untuk lanjut transaksi."
+                    return@launch
+                }
                 val total = getTotal()
                 val paid = getTotalPaid()
                 if (paid < total) {
@@ -925,17 +1104,32 @@ class POSViewModel @Inject constructor(
                     completedAt = now,
                 )
                 val localItems = cartSnapshot.map { ci ->
-                    val pid = ci.product.id.toIntOrNull()
-                        ?: throw IllegalStateException("ID produk tidak valid: ${ci.product.id}")
-                    LocalTransactionItemEntity(
-                        transactionId = localId,
-                        productId = pid,
-                        productName = ci.product.name,
-                        quantity = ci.qty.toDouble(),
-                        unitPrice = ci.product.sellPrice,
-                        subtotal = ci.product.sellPrice * ci.qty,
-                        unit = ci.product.unit,
-                    )
+                    if (ci.isRacikan) {
+                        LocalTransactionItemEntity(
+                            transactionId = localId,
+                            productId = 0,
+                            productName = ci.compoundRecipeName ?: ci.product.name,
+                            quantity = ci.qty.toDouble(),
+                            unitPrice = ci.product.sellPrice,
+                            subtotal = ci.product.sellPrice * ci.qty,
+                            unit = ci.product.unit,
+                            isRacikan = true,
+                            compoundRecipeId = ci.compoundRecipeId,
+                            itemName = ci.compoundRecipeName ?: ci.product.name,
+                        )
+                    } else {
+                        val pid = ci.product.id.toIntOrNull()
+                            ?: throw IllegalStateException("ID produk tidak valid: ${ci.product.id}")
+                        LocalTransactionItemEntity(
+                            transactionId = localId,
+                            productId = pid,
+                            productName = ci.product.name,
+                            quantity = ci.qty.toDouble(),
+                            unitPrice = ci.product.sellPrice,
+                            subtotal = ci.product.sellPrice * ci.qty,
+                            unit = ci.product.unit,
+                        )
+                    }
                 }
                 val localPayments = paymentLines.map {
                     LocalPaymentEntity(
@@ -947,9 +1141,11 @@ class POSViewModel @Inject constructor(
                 }
                 localTransactionDao.insertFull(localTx, localItems, localPayments)
 
-                // ── 2. Deduct local stock ──
+                // ── 2. Deduct local stock (skip racikan sentinel products) ──
                 for (ci in cartSnapshot) {
-                    productCacheDao.deductStock(ci.product.id, ci.qty)
+                    if (!ci.isRacikan) {
+                        productCacheDao.deductStock(ci.product.id, ci.qty)
+                    }
                 }
 
                 // ── 3. Show receipt immediately from local data ──
@@ -1089,6 +1285,147 @@ class POSViewModel @Inject constructor(
         _showCloseShiftDialog.value = true
     }
 
+    fun recordCashOut(
+        shiftId: String,
+        branchId: String,
+        cashierId: String,
+        amount: Double,
+        category: String,
+        note: String? = null,
+        receiptPhotoPath: String? = null,
+    ) {
+        if (amount <= 0.0) return
+        viewModelScope.launch {
+            val shift = localShiftDao.getShift(shiftId)
+            if (shift == null || shift.endedAt != null) {
+                _error.value = "Shift sudah ditutup. Kas Keluar tidak bisa ditambahkan."
+                return@launch
+            }
+            localCashExpenseDao.insert(
+                LocalCashExpenseEntity(
+                    id = UUID.randomUUID().toString(),
+                    shiftId = shiftId,
+                    branchId = branchId,
+                    cashierId = cashierId,
+                    amount = amount,
+                    category = category.ifBlank { "Lainnya" },
+                    note = note?.takeIf { it.isNotBlank() },
+                    receiptPhotoPath = receiptPhotoPath?.takeIf { it.isNotBlank() },
+                    createdAt = Instant.now().toString(),
+                ),
+            )
+            OfflineSyncScheduler.enqueueCashExpenseSync(appContext)
+            _cashOutTotal.value = localCashExpenseDao.getTotalCashOutForShift(shiftId)
+            _cashOutHistory.value = localCashExpenseDao.getCashOutForShift(shiftId)
+        }
+    }
+
+    fun loadCashOutHistory(shiftId: String) {
+        viewModelScope.launch {
+            _cashOutLoading.value = true
+            try {
+                _cashOutTotal.value = localCashExpenseDao.getTotalCashOutForShift(shiftId)
+                _cashOutHistory.value = localCashExpenseDao.getCashOutForShift(shiftId)
+            } finally {
+                _cashOutLoading.value = false
+            }
+        }
+    }
+
+    fun updateCashOut(
+        id: String,
+        shiftId: String,
+        actorCashierId: String,
+        amount: Double,
+        category: String,
+        note: String? = null,
+        receiptPhotoPath: String? = null,
+    ) {
+        if (amount <= 0.0) return
+        viewModelScope.launch {
+            val shift = localShiftDao.getShift(shiftId)
+            if (shift == null || shift.endedAt != null) {
+                _error.value = "Shift sudah ditutup. Kas Keluar tidak bisa diperbarui."
+                return@launch
+            }
+            val existing = localCashExpenseDao.getById(id)
+            if (existing == null) {
+                _error.value = "Data Kas Keluar tidak ditemukan."
+                return@launch
+            }
+            val newCategory = category.ifBlank { "Lainnya" }
+            val newNote = note?.takeIf { it.isNotBlank() }
+            val newReceipt = receiptPhotoPath?.takeIf { it.isNotBlank() }
+            localCashExpenseDao.updateCashOut(
+                id = id,
+                amount = amount,
+                category = newCategory,
+                note = newNote,
+                receiptPhotoPath = newReceipt,
+            )
+            localCashExpenseAuditDao.insert(
+                LocalCashExpenseAuditEntity(
+                    id = UUID.randomUUID().toString(),
+                    cashExpenseId = id,
+                    shiftId = shiftId,
+                    action = "update",
+                    actorCashierId = actorCashierId.ifBlank { "unknown" },
+                    oldAmount = existing.amount,
+                    newAmount = amount,
+                    oldCategory = existing.category,
+                    newCategory = newCategory,
+                    oldNote = existing.note,
+                    newNote = newNote,
+                    oldReceiptPhotoPath = existing.receiptPhotoPath,
+                    newReceiptPhotoPath = newReceipt,
+                    createdAt = Instant.now().toString(),
+                ),
+            )
+            OfflineSyncScheduler.enqueueCashExpenseSync(appContext)
+            _cashOutTotal.value = localCashExpenseDao.getTotalCashOutForShift(shiftId)
+            _cashOutHistory.value = localCashExpenseDao.getCashOutForShift(shiftId)
+        }
+    }
+
+    fun deleteCashOut(id: String, shiftId: String, actorCashierId: String) {
+        viewModelScope.launch {
+            val shift = localShiftDao.getShift(shiftId)
+            if (shift == null || shift.endedAt != null) {
+                _error.value = "Shift sudah ditutup. Kas Keluar tidak bisa dihapus."
+                return@launch
+            }
+            val existing = localCashExpenseDao.getById(id)
+            if (existing == null) {
+                _error.value = "Data Kas Keluar tidak ditemukan."
+                return@launch
+            }
+            localCashExpenseDao.deleteById(id)
+            localCashExpenseAuditDao.insert(
+                LocalCashExpenseAuditEntity(
+                    id = UUID.randomUUID().toString(),
+                    cashExpenseId = id,
+                    shiftId = shiftId,
+                    action = "delete",
+                    actorCashierId = actorCashierId.ifBlank { "unknown" },
+                    oldAmount = existing.amount,
+                    oldCategory = existing.category,
+                    oldNote = existing.note,
+                    oldReceiptPhotoPath = existing.receiptPhotoPath,
+                    createdAt = Instant.now().toString(),
+                ),
+            )
+            OfflineSyncScheduler.enqueueCashExpenseSync(appContext)
+            _cashOutTotal.value = localCashExpenseDao.getTotalCashOutForShift(shiftId)
+            _cashOutHistory.value = localCashExpenseDao.getCashOutForShift(shiftId)
+        }
+    }
+
+    fun rememberPreferredPrinter(address: String) {
+        viewModelScope.launch {
+            session.savePreferredBtPrinterAddress(address)
+        }
+    }
+
     fun dismissCloseShiftDialog() {
         _showCloseShiftDialog.value = false
     }
@@ -1120,15 +1457,32 @@ class POSViewModel @Inject constructor(
                 // Calculate cash vs non-cash breakdown
                 var totalCashSales = 0.0
                 var totalNonCashSales = 0.0
+                var totalQrisSales = 0.0
                 for (tx in transactions) {
-                    if (tx.paymentMethod == "cash") {
-                        totalCashSales += tx.grandTotal
+                    val paymentRows = localTransactionDao.getPaymentsForTransaction(tx.id)
+                    if (paymentRows.isNotEmpty()) {
+                        for (p in paymentRows) {
+                            val method = p.method.trim().lowercase()
+                            if (method == "cash") {
+                                totalCashSales += p.amount
+                            } else {
+                                totalNonCashSales += p.amount
+                                if (method == "qris") totalQrisSales += p.amount
+                            }
+                        }
                     } else {
-                        totalNonCashSales += tx.grandTotal
+                        if (tx.paymentMethod == "cash") totalCashSales += tx.grandTotal
+                        else totalNonCashSales += tx.grandTotal
                     }
                 }
 
-                val expectedCash = shift.startingCash + totalCashSales
+                val totalCashOut = localCashExpenseDao.getTotalCashOutForShift(shift.id)
+                val cashOutByCategory = localCashExpenseDao.getCashOutByCategory(shift.id)
+                    .map { CashOutByCategory(category = it.category, total = it.total) }
+                val topSelling = localTransactionDao.getTopProductsForShift(shift.id, limit = 5)
+                    .map { TopSellingProduct(name = it.name, qty = it.qty) }
+
+                val expectedCash = shift.startingCash + totalCashSales - totalCashOut
                 val now = Instant.now().toString()
 
                 localShiftDao.closeShift(
@@ -1156,7 +1510,11 @@ class POSViewModel @Inject constructor(
                     totalSales = totalSales,
                     totalCashSales = totalCashSales,
                     totalNonCashSales = totalNonCashSales,
+                    totalQrisSales = totalQrisSales,
+                    totalCashOut = totalCashOut,
                     totalTransactions = txCount,
+                    topSellingProducts = topSelling,
+                    cashOutByCategory = cashOutByCategory,
                 )
 
                 // Sync close to server (best-effort)
@@ -1177,13 +1535,69 @@ class POSViewModel @Inject constructor(
 
                 _activeShift.value = null
                 _shiftExpiredWarning.value = false
+                _shiftSoftAlert.value = false
+                _shiftHardLock.value = false
                 _showCloseShiftDialog.value = false
                 _shiftBlocking.value = true // Require new shift to continue
+
+                tryAutoPrintShiftClose(_shiftSummary.value)
             } catch (e: Exception) {
                 _shiftDialogError.value = formatApiThrowable(e, gson)
             } finally {
                 _closingShift.value = false
             }
+        }
+    }
+
+    private suspend fun tryAutoPrintShiftOpen(shift: LocalShiftEntity, branchName: String) {
+        val preferred = session.getPreferredBtPrinterAddress() ?: return
+        val printer = ThermalPrinterManager.getPairedPrinters(appContext)
+            .firstOrNull { it.address == preferred }
+            ?: return
+        val data = ThermalPrinterManager.ShiftOpenReceiptData(
+            pharmacyName = "ApotekPOS",
+            shiftType = shift.shiftType,
+            cashierName = shift.cashierName,
+            branchName = branchName,
+            startedAt = shift.startedAt,
+            startingCash = shift.startingCash,
+        )
+        val result = ThermalPrinterManager.printShiftOpenSlip(appContext, printer, data)
+        result.exceptionOrNull()?.let {
+            _error.value = "Shift dibuka, tetapi auto-cetak gagal: ${it.message ?: "printer tidak tersedia"}"
+        }
+    }
+
+    private suspend fun tryAutoPrintShiftClose(summary: ShiftSummaryData?) {
+        val data = summary ?: return
+        val preferred = session.getPreferredBtPrinterAddress() ?: return
+        val printer = ThermalPrinterManager.getPairedPrinters(appContext)
+            .firstOrNull { it.address == preferred }
+            ?: return
+        val report = ThermalPrinterManager.ShiftReportData(
+            pharmacyName = "ApotekPOS",
+            shiftType = data.shiftType,
+            cashierName = data.cashierName,
+            branchName = data.branchName,
+            startedAt = data.startedAt,
+            endedAt = data.endedAt,
+            startingCash = data.startingCash,
+            endingCash = data.endingCash,
+            expectedCash = data.expectedCash,
+            difference = data.difference,
+            totalSales = data.totalSales,
+            totalCashSales = data.totalCashSales,
+            totalNonCashSales = data.totalNonCashSales,
+            totalQrisSales = data.totalQrisSales,
+            totalCashOut = data.totalCashOut,
+            totalTransactions = data.totalTransactions,
+            topSellingProducts = data.topSellingProducts.map {
+                ThermalPrinterManager.TopSellingLine(name = it.name, qty = it.qty)
+            },
+        )
+        val result = ThermalPrinterManager.printShiftReport(appContext, printer, report)
+        result.exceptionOrNull()?.let {
+            _error.value = "Shift ditutup, tetapi auto-cetak gagal: ${it.message ?: "printer tidak tersedia"}"
         }
     }
 
