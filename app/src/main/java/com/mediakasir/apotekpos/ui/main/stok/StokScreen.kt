@@ -145,7 +145,7 @@ fun StokScreen(
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "Cek Stok",
+                        text = "Stok",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
