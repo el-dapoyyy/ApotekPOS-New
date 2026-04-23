@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,7 +24,9 @@ import com.mediakasir.apotekpos.R
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
 import com.mediakasir.apotekpos.ui.theme.*
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     license: LicenseInfo?,
@@ -31,43 +34,52 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onLogoutAllDevices: () -> Unit,
     onResetApp: () -> Unit,
+    onRefresh: () -> Unit = {},
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showTutupKasirDialog by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
     
+    // Stop refreshing when data changes (license or user updated)
+    LaunchedEffect(license, user) {
+        isRefreshing = false
+    }
+
     var selectedTab by remember { mutableStateOf("Informasi Apotek") }
     val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan", "Tentang Aplikasi")
 
+    val coroutineScope = rememberCoroutineScope()
+
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            onRefresh()
+            // Paksa berhenti setelah 500ms karena jika data tidak ada yang berubah,
+            // LaunchedEffect(license, user) tidak akan terpanggil lagi oleh Compose.
+            coroutineScope.launch {
+                kotlinx.coroutines.delay(500)
+                isRefreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    ) {
     Column(modifier = Modifier.fillMaxSize().background(Background)) {
         // Top App Bar
-        Surface(shadowElevation = 2.dp) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .background(Color.White)
-            ) {
-                // Hamburger menu on left
-                Icon(
-                    Icons.Outlined.Menu, 
-                    contentDescription = null, 
-                    tint = TextSecondary,
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 16.dp)
-                        .size(24.dp)
-                )
-                
-                // Centered text
-                Text(
-                    "PENGATURAN", 
-                    color = Primary, 
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Primary)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "Setelan", 
+                fontSize = 20.sp, 
+                fontWeight = FontWeight.Bold, 
+                color = Color.White
+            )
         }
         
         Row(modifier = Modifier.fillMaxSize()) {
@@ -232,6 +244,7 @@ fun SettingsScreen(
             }
         }
     }
+    } // PullToRefreshBox
 
     if (showLogoutDialog) {
         AlertDialog(

@@ -141,7 +141,7 @@ fun StokScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
@@ -165,13 +165,7 @@ fun StokScreen(
                         Icon(Icons.Outlined.AccountCircle, contentDescription = "Profile", tint = Color.White)
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "Kelola stok obat dengan mudah",
-                    fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.85f),
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = search,
                     onValueChange = {
@@ -211,7 +205,7 @@ fun StokScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 24.dp)
+                            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {

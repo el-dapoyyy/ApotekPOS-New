@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +48,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -168,6 +170,8 @@ fun POSScreen(
     val cashOutTotal by viewModel.cashOutTotal.collectAsState()
     val cashOutLoading by viewModel.cashOutLoading.collectAsState()
 
+    var isRefreshing by remember { mutableStateOf(false) }
+
     var search by remember { mutableStateOf("") }
     var activeCategory by remember { mutableStateOf("Semua") }
     var showCart by remember { mutableStateOf(false) }
@@ -221,6 +225,13 @@ fun POSScreen(
         viewModel.loadProducts(branchId, search)
     }
 
+    // Sync isRefreshing with isLoading state from ViewModel
+    LaunchedEffect(isLoading) {
+        if (!isLoading) {
+            isRefreshing = false
+        }
+    }
+
     LaunchedEffect(error) {
         if (error != null) {
             toastMsg = error
@@ -254,6 +265,16 @@ fun POSScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(0), // Outer Scaffold di MainActivity sudah urus inset
     ) { _ -> // abaikan innerPadding agar konten meluas penuh tanpa gap ganda
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                isRefreshing = true
+                if (user != null && shiftGateResolved && !shiftBlocking && !posKasirCatalogBlocked) {
+                    viewModel.loadProducts(branchId, search)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -280,7 +301,7 @@ fun POSScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(HeaderHeight)
+                                .heightIn(min = HeaderHeight)
                                 .padding(horizontal = SpacingLg, vertical = SpacingSm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -345,7 +366,7 @@ fun POSScreen(
                                         }
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(44.dp),
+                                modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -1365,6 +1386,7 @@ fun POSScreen(
                 }
             }
         }
+        } // PullToRefreshBox
     }
 
     if (showSyncErrorDialog) {

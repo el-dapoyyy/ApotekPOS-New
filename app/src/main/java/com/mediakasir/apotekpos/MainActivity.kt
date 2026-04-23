@@ -239,6 +239,9 @@ fun ApotekNavHost() {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    onRefresh = {
+                        viewModel.refreshSessionAfterDayCheck()
+                    },
                 )
             }
 

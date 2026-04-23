@@ -115,7 +115,8 @@ fun HistoryScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Primary)
-                .padding(16.dp)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
         ) {
             Text("Riwayat Transaksi", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
