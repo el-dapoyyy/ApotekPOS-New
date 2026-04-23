@@ -196,11 +196,10 @@ fun SettingsScreen(
 
                         Spacer(Modifier.height(32.dp))
 
-                        // Tutup Kasir Button
                         Button(
                             onClick = { showTutupKasirDialog = true },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Info),
+                            colors = ButtonDefaults.buttonColors(containerColor = Warning),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text("Tutup Kasir", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
@@ -208,23 +207,28 @@ fun SettingsScreen(
 
                         Spacer(Modifier.height(16.dp))
 
-                        Button(
+                        OutlinedButton(
                             onClick = { showLogoutDialog = true },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                            shape = RoundedCornerShape(8.dp)
+                            border = androidx.compose.foundation.BorderStroke(2.dp, Error),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = Error
+                            )
                         ) {
-                            Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("Logout", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Error)
                         }
 
                         Spacer(Modifier.height(12.dp))
 
-                        OutlinedButton(
+                        Button(
                             onClick = onLogoutAllDevices,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C)), // Merah Tua
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Logout Semua Perangkat", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("Logout Semua Perangkat", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White)
                         }
 
                         Spacer(Modifier.height(16.dp))
@@ -232,10 +236,10 @@ fun SettingsScreen(
                         Button(
                             onClick = { showClearDialog = true },
                             modifier = Modifier.fillMaxWidth().height(52.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF991B1B)), // Merah Solid (paling tegas)
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(stringResource(R.string.settings_reset_app), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("⚠️ Reset Data Aplikasi ⚠️", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White)
                         }
                     }
                 }
