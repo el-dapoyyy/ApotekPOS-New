@@ -182,4 +182,9 @@ interface ApiService {
 
     @POST("alerts/stock/acknowledge-multiple")
     suspend fun acknowledgeStockMultiple(@Body body: AcknowledgeMultipleRequest): ApiMessageEnvelope
+
+    // --- Feedback (Bantuan & Masukan) ---
+
+    @POST("v1/feedback")
+    suspend fun sendFeedback(@Body body: FeedbackRequest): ApiMessageEnvelope
 }

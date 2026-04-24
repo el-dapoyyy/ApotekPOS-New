@@ -371,3 +371,14 @@ data class LowStockProduct(
 )
 
 data class MessageResponse(val message: String)
+
+// ===== Feedback Models =====
+
+data class FeedbackRequest(
+    val category: String,
+    val subject: String,
+    val message: String,
+    @SerializedName("user_id") val userId: String,
+    @SerializedName("branch_id") val branchId: String,
+    @SerializedName("app_version") val appVersion: String,
+)

@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -20,9 +22,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.mediakasir.apotekpos.R
 import com.mediakasir.apotekpos.data.model.LicenseInfo
 import com.mediakasir.apotekpos.data.model.UserInfo
+import com.mediakasir.apotekpos.ui.effectiveBranchId
 import com.mediakasir.apotekpos.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -35,6 +39,7 @@ fun SettingsScreen(
     onLogoutAllDevices: () -> Unit,
     onResetApp: () -> Unit,
     onRefresh: () -> Unit = {},
+    feedbackViewModel: FeedbackViewModel = hiltViewModel(),
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
@@ -47,10 +52,39 @@ fun SettingsScreen(
     }
 
     var selectedTab by remember { mutableStateOf("Informasi Apotek") }
-    val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan", "Tentang Aplikasi")
+    val tabs = listOf("Informasi Apotek", "Informasi Pengguna", "Akun & Keamanan", "Bantuan & Masukan", "Tentang Aplikasi")
 
     val coroutineScope = rememberCoroutineScope()
 
+    // ── Feedback form state ──
+    val fbCategories = listOf("Aplikasi", "Web Admin")
+    var fbExpanded by remember { mutableStateOf(false) }
+    var fbCategory by remember { mutableStateOf(fbCategories[0]) }
+    var fbSubject by remember { mutableStateOf("") }
+    var fbMessage by remember { mutableStateOf("") }
+    val fbLoading by feedbackViewModel.isLoading.collectAsState()
+    val fbSuccess by feedbackViewModel.isSuccess.collectAsState()
+    val fbError by feedbackViewModel.errorMessage.collectAsState()
+    val branchId = remember(license, user) { effectiveBranchId(license, user) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(fbSuccess) {
+        if (fbSuccess) {
+            snackbarHostState.showSnackbar("Masukan berhasil dikirim. Terima kasih!", duration = SnackbarDuration.Short)
+            fbSubject = ""
+            fbMessage = ""
+            fbCategory = fbCategories[0]
+            feedbackViewModel.resetState()
+        }
+    }
+    LaunchedEffect(fbError) {
+        fbError?.let {
+            snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short)
+            feedbackViewModel.resetState()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
@@ -126,6 +160,7 @@ fun SettingsScreen(
                             "Informasi Apotek" -> Icons.Outlined.Home
                             "Informasi Pengguna" -> Icons.Outlined.Group
                             "Akun & Keamanan" -> Icons.Outlined.Lock
+                            "Bantuan & Masukan" -> Icons.AutoMirrored.Outlined.HelpOutline
                             else -> Icons.Outlined.Info
                         }
                         Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
@@ -151,7 +186,7 @@ fun SettingsScreen(
                 Text(selectedTab, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.height(24.dp))
                 
-                if (selectedTab != "Tentang Aplikasi") {
+                if (selectedTab != "Tentang Aplikasi" && selectedTab != "Bantuan & Masukan") {
                     Text(
                         when(selectedTab) {
                             "Informasi Apotek" -> "Data Apotek"
@@ -167,7 +202,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(16.dp))
                 }
                 
-                if (selectedTab != "Tentang Aplikasi") {
+                if (selectedTab != "Tentang Aplikasi" && selectedTab != "Bantuan & Masukan") {
                     Text("Options", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                 }
                 Spacer(Modifier.height(12.dp))
@@ -183,6 +218,170 @@ fun SettingsScreen(
                         DetailRow("Alamat Email", user?.email ?: "-")
                         DetailRow("Nama Pengguna", user?.name ?: "-")
                         DetailRow("Role Sistem", user?.role?.uppercase() ?: "-")
+                    }
+                    "Bantuan & Masukan" -> {
+                        Text(
+                            "Punya kendala atau saran untuk aplikasi ini? Isi form di bawah dan kirimkan langsung ke tim kami.",
+                            fontSize = 14.sp,
+                            color = TextSecondary,
+                            lineHeight = 20.sp,
+                        )
+                        Spacer(Modifier.height(20.dp))
+
+                        // Kategori dropdown
+                        Text("Kategori", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Spacer(Modifier.height(6.dp))
+                        ExposedDropdownMenuBox(
+                            expanded = fbExpanded,
+                            onExpandedChange = { fbExpanded = !fbExpanded },
+                        ) {
+                            OutlinedTextField(
+                                value = fbCategory,
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fbExpanded) },
+                                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Primary,
+                                    unfocusedBorderColor = Border,
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.Category, contentDescription = null, tint = Primary)
+                                },
+                            )
+                            ExposedDropdownMenu(
+                                expanded = fbExpanded,
+                                onDismissRequest = { fbExpanded = false },
+                            ) {
+                                fbCategories.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = { fbCategory = option; fbExpanded = false },
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Subjek
+                        Text("Subjek", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = fbSubject,
+                            onValueChange = { fbSubject = it },
+                            placeholder = { Text("Judul atau Subjek", color = TextSecondary) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Primary,
+                                unfocusedBorderColor = Border,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = Primary,
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Title, contentDescription = null, tint = Primary)
+                            },
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Pesan
+                        Text("Pesan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Spacer(Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = fbMessage,
+                            onValueChange = { fbMessage = it },
+                            placeholder = { Text("Jelaskan detail kendala atau masukan Anda…", color = TextSecondary) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                            maxLines = 8,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Primary,
+                                unfocusedBorderColor = Border,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                cursorColor = Primary,
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Primary,
+                                    modifier = Modifier.padding(bottom = 64.dp),
+                                )
+                            },
+                        )
+
+                        Spacer(Modifier.height(20.dp))
+
+                        // Tombol Kirim
+                        val canSubmit = fbSubject.isNotBlank() && fbMessage.isNotBlank() && !fbLoading
+                        Button(
+                            onClick = {
+                                feedbackViewModel.sendFeedback(
+                                    category = fbCategory,
+                                    subject = fbSubject,
+                                    message = fbMessage,
+                                    user = user,
+                                    branchId = branchId,
+                                )
+                            },
+                            enabled = canSubmit,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Primary,
+                                disabledContainerColor = Primary.copy(alpha = 0.4f),
+                            ),
+                            shape = RoundedCornerShape(28.dp)
+                        ) {
+                            if (fbLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.5.dp,
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text("Mengirim…", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                            } else {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.Send,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text("Kirim Bantuan & Masukan", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Info teknis
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = PrimaryLight.copy(alpha = 0.5f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(Icons.Outlined.Info, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
+                                Text(
+                                    "Data teknis (Versi Aplikasi & ID Cabang) akan dikirim otomatis untuk membantu tim kami.",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary,
+                                    lineHeight = 17.sp,
+                                )
+                            }
+                        }
                     }
                     "Tentang Aplikasi" -> {
                         DetailRow("Nama Aplikasi", "ApoApps POS")
@@ -249,6 +448,12 @@ fun SettingsScreen(
         }
     }
     } // PullToRefreshBox
+
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+    )
+    } // Box
 
     if (showLogoutDialog) {
         AlertDialog(

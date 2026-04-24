@@ -268,33 +268,45 @@ fun LoginScreen(
     }
 }
 
+private data class SlideData(
+    val iconVector: ImageVector? = null,
+    val iconResId: Int? = null,
+    val title: String,
+    val subtitle: String
+)
+
 @Composable
 private fun LoginBrandingCarousel(modifier: Modifier = Modifier) {
-    var slide by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(4500)
-            slide = (slide + 1) % 3
-        }
-    }
-
     val slides = listOf(
-        Triple(
-            Icons.Outlined.LocalHospital,
-            stringResource(R.string.app_name),
-            stringResource(R.string.app_tagline),
+        SlideData(
+            iconResId = R.drawable.app_logo_login,
+            title = stringResource(R.string.app_name),
+            subtitle = stringResource(R.string.app_tagline),
         ),
-        Triple(
-            Icons.Outlined.Vaccines,
-            stringResource(R.string.premium_edition),
-            stringResource(R.string.login_subtitle),
+        SlideData(
+            iconVector = Icons.Outlined.LocalHospital,
+            title = stringResource(R.string.app_name),
+            subtitle = stringResource(R.string.app_tagline),
         ),
-        Triple(
-            Icons.Outlined.Favorite,
-            stringResource(R.string.wordmark_prefix) + stringResource(R.string.wordmark_suffix),
-            stringResource(R.string.splash_footer),
+        SlideData(
+            iconVector = Icons.Outlined.Vaccines,
+            title = stringResource(R.string.premium_edition),
+            subtitle = stringResource(R.string.login_subtitle),
+        ),
+        SlideData(
+            iconVector = Icons.Outlined.Favorite,
+            title = stringResource(R.string.wordmark_prefix) + stringResource(R.string.wordmark_suffix),
+            subtitle = stringResource(R.string.splash_footer),
         ),
     )
+
+    var slide by remember { mutableIntStateOf(0) }
+    LaunchedEffect(slides.size) {
+        while (true) {
+            delay(4500)
+            slide = (slide + 1) % slides.size
+        }
+    }
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         AnimatedContent(
@@ -304,15 +316,21 @@ private fun LoginBrandingCarousel(modifier: Modifier = Modifier) {
             },
             label = "login_brand",
         ) { index ->
-            val (icon, title, subtitle) = slides[index]
-            BrandSlide(icon = icon, title = title, subtitle = subtitle)
+            val slideData = slides[index]
+            BrandSlide(
+                iconVector = slideData.iconVector,
+                iconResId = slideData.iconResId,
+                title = slideData.title,
+                subtitle = slideData.subtitle
+            )
         }
     }
 }
 
 @Composable
 private fun BrandSlide(
-    icon: ImageVector,
+    iconVector: ImageVector?,
+    iconResId: Int?,
     title: String,
     subtitle: String,
 ) {
@@ -321,12 +339,20 @@ private fun BrandSlide(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.padding(horizontal = 8.dp),
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(88.dp),
-            tint = Color.White.copy(alpha = 0.92f),
-        )
+        if (iconResId != null) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = iconResId),
+                contentDescription = null,
+                modifier = Modifier.height(140.dp)
+            )
+        } else if (iconVector != null) {
+            Icon(
+                imageVector = iconVector,
+                contentDescription = null,
+                modifier = Modifier.size(88.dp),
+                tint = Color.White.copy(alpha = 0.92f),
+            )
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
